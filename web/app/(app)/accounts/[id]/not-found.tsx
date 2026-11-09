@@ -1,14 +1,17 @@
 import Link from "next/link";
 
-export default function AccountNotFound() {
+import { getI18n } from "@/lib/i18n/server";
+
+export default async function AccountNotFound() {
+  const { t } = await getI18n();
   return (
     <div className="boundary-page">
       <div className="empty-state">
         <span className="state-icon">404</span>
-        <h2>Conta não encontrada</h2>
-        <p>A conta não existe ou não está disponível para você.</p>
+        <h2>{t("accounts.notFound.title")}</h2>
+        <p>{t("accounts.notFound.description")}</p>
         <Link className="button button-small" href="/accounts">
-          Voltar para contas
+          {t("accounts.notFound.back")}
         </Link>
       </div>
     </div>

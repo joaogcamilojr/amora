@@ -1,15 +1,16 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   AccountMemberRole,
   AccountStatus,
   AccountType,
   AssetType,
   CardType,
+  Prisma,
   YieldType,
 } from "@prisma/client";
 
 import { getAccountTypeConfiguration } from "@/lib/accounts/account-types";
 import { isCountryCode } from "@/lib/countries";
+import { camelize, snakeKey } from "@/lib/case";
 import { parseDecimal, validateScale } from "@/lib/money";
 
 export const accountTypes = Object.values(AccountType);
@@ -17,10 +18,15 @@ export const roles = Object.values(AccountMemberRole);
 export const cardTypes = Object.values(CardType);
 export const yieldTypes = Object.values(YieldType);
 
+/**
+ * Erro de domínio. `message` é uma chave do catálogo ("errors.invalidCurrency"), traduzida para o idioma
+ * do usuário em `toErrorResponse`/`localizeError`, com `vars` para interpolação.
+ */
 export class ValidationError extends Error {
   constructor(
     public code: string,
     message = code,
+    public vars?: Record<string, string | number>,
   ) {
     super(message);
   }
@@ -29,7 +35,7 @@ export class ValidationError extends Error {
 export function emailValue(value: unknown) {
   const email = stringValue(value, "email", 254).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    throw new ValidationError("VALIDATION_ERROR", "email is invalid");
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidEmail");
   return email;
 }
 
@@ -44,13 +50,13 @@ export function stringValue(
     (required && !value.trim()) ||
     value.length > max
   )
-    throw new ValidationError("VALIDATION_ERROR", `${field} is invalid`);
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", { field });
   return value.trim();
 }
 
 export function cuidValue(value: string, field = "id") {
   if (!/^[a-z0-9]{20,30}$/i.test(value))
-    throw new ValidationError("VALIDATION_ERROR", `${field} is invalid`);
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", { field });
   return value;
 }
 
@@ -60,16 +66,15 @@ export function enumValue<T extends string>(
   field: string,
 ): T {
   if (typeof value !== "string" || !values.includes(value as T))
-    throw new ValidationError("VALIDATION_ERROR", `${field} is invalid`);
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", { field });
   return value as T;
 }
 
 export function parseCivilDate(value: unknown, field = "openingDate") {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    throw new ValidationError(
-      "VALIDATION_ERROR",
-      `${field} must be YYYY-MM-DD`,
-    );
+    throw new ValidationError("VALIDATION_ERROR", "errors.dateFormat", {
+      field,
+    });
   const [year, month, day] = value.split("-").map(Number);
   const instant = new Date(Date.UTC(year, month - 1, day, 12));
   if (
@@ -83,7 +88,7 @@ export function parseCivilDate(value: unknown, field = "openingDate") {
     instant.getUTCMonth() !== month - 1 ||
     instant.getUTCDate() !== day
   )
-    throw new ValidationError("VALIDATION_ERROR", `${field} is invalid`);
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", { field });
   return instant;
 }
 
@@ -107,13 +112,13 @@ function accountFields(body: Record<string, unknown>, includeType: boolean) {
   if (countryCode && !isCountryCode(countryCode))
     throw new ValidationError(
       "INVALID_COUNTRY_CODE",
-      "Código de país inválido",
+      "errors.invalidCountryCode",
     );
 
   if (config?.requiresCountry && !countryCode)
     throw new ValidationError(
       "COUNTRY_REQUIRED",
-      "País é obrigatório para este tipo",
+      "errors.countryRequired",
     );
 
   const institutionName =
@@ -124,19 +129,19 @@ function accountFields(body: Record<string, unknown>, includeType: boolean) {
   if (config?.requiresInstitution && !institutionName)
     throw new ValidationError(
       "INSTITUTION_REQUIRED",
-      "Instituição é obrigatória para este tipo",
+      "errors.institutionRequired",
     );
 
   if (config && !config.allowsCountry && countryCode)
     throw new ValidationError(
       "VALIDATION_ERROR",
-      "País não permitido para este tipo",
+      "errors.countryNotAllowed",
     );
 
   if (config && !config.allowsInstitution && institutionName)
     throw new ValidationError(
       "VALIDATION_ERROR",
-      "Instituição não permitida para este tipo",
+      "errors.institutionNotAllowed",
     );
 
   return {
@@ -146,20 +151,20 @@ function accountFields(body: Record<string, unknown>, includeType: boolean) {
       body.description == null
         ? null
         : stringValue(body.description, "description", 500, false),
-    institutionName,
-    countryCode,
-    externalReference:
+    institution_name: institutionName,
+    country_code: countryCode,
+    external_reference:
       body.externalReference == null
         ? null
         : stringValue(body.externalReference, "externalReference", 120, false),
     color:
       body.color == null ? null : stringValue(body.color, "color", 20, false),
     icon: body.icon == null ? null : stringValue(body.icon, "icon", 40, false),
-    includeInNetWorth:
+    include_in_net_worth:
       typeof body.includeInNetWorth === "boolean"
         ? body.includeInNetWorth
         : (config?.defaultIncludeInNetWorth ?? true),
-    includeInAvailableBalance:
+    include_in_available_balance:
       typeof body.includeInAvailableBalance === "boolean"
         ? body.includeInAvailableBalance
         : (config?.defaultIncludeInAvailableBalance ?? true),
@@ -185,9 +190,13 @@ export function parseUpdateAccountInput(
     "includeInNetWorth",
     "includeInAvailableBalance",
     "card",
+    "holderName",
+    "householdId",
+    "holderMemberId",
+    "notes",
   ];
   if (Object.keys(body).some((key) => !allowed.includes(key)))
-    throw new ValidationError("VALIDATION_ERROR", "Campo não editável");
+    throw new ValidationError("VALIDATION_ERROR", "errors.fieldNotEditable");
   const config = getAccountTypeConfiguration(type);
   const output: Record<string, unknown> = {};
   if ("name" in body) output.name = stringValue(body.name, "name", 100);
@@ -198,7 +207,7 @@ export function parseUpdateAccountInput(
     "icon",
   ] as const)
     if (field in body)
-      output[field] =
+      output[snakeKey(field)] =
         body[field] == null
           ? null
           : stringValue(
@@ -213,6 +222,16 @@ export function parseUpdateAccountInput(
                     : 120,
               false,
             );
+  if ("holderName" in body)
+    output.holder_name =
+      body.holderName == null || body.holderName === ""
+        ? null
+        : stringValue(body.holderName, "holderName", 80, false);
+  if ("notes" in body)
+    output.notes =
+      body.notes == null || body.notes === ""
+        ? null
+        : stringValue(body.notes, "notes", 1000, false);
   if ("countryCode" in body) {
     const country =
       body.countryCode == null || body.countryCode === ""
@@ -221,14 +240,14 @@ export function parseUpdateAccountInput(
     if (country && !isCountryCode(country))
       throw new ValidationError(
         "INVALID_COUNTRY_CODE",
-        "Código de país inválido",
+        "errors.invalidCountryCode",
       );
     if (config.requiresCountry && !country)
       throw new ValidationError(
         "COUNTRY_REQUIRED",
-        "País é obrigatório para este tipo",
+        "errors.countryRequired",
       );
-    output.countryCode = country;
+    output.country_code = country;
   }
   if ("institutionName" in body) {
     const institution =
@@ -238,9 +257,9 @@ export function parseUpdateAccountInput(
     if (config.requiresInstitution && !institution)
       throw new ValidationError(
         "INSTITUTION_REQUIRED",
-        "Instituição é obrigatória para este tipo",
+        "errors.institutionRequired",
       );
-    output.institutionName = institution;
+    output.institution_name = institution;
   }
   for (const field of [
     "includeInNetWorth",
@@ -248,8 +267,8 @@ export function parseUpdateAccountInput(
   ] as const)
     if (field in body) {
       if (typeof body[field] !== "boolean")
-        throw new ValidationError("VALIDATION_ERROR", `${field} is invalid`);
-      output[field] = body[field];
+        throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", { field });
+      output[snakeKey(field)] = body[field];
     }
   return output;
 }
@@ -267,37 +286,41 @@ export function parseOpeningBalances(
   const config = getAccountTypeConfiguration(type);
   if (input == null) input = [];
   if (!Array.isArray(input) || input.length > 20)
-    throw new ValidationError("VALIDATION_ERROR", "openingBalances inválido");
+    throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", {
+        field: "openingBalances",
+      });
   if (config.assetSelection === "single" && input.length > 1)
     throw new ValidationError(
       "MULTIPLE_ASSETS_NOT_ALLOWED",
-      "Este tipo aceita apenas um ativo",
+      "errors.singleAssetOnly",
     );
   const seen = new Set<string>();
 
   return input.map((raw) => {
     if (!raw || typeof raw !== "object")
-      throw new ValidationError("VALIDATION_ERROR", "openingBalances inválido");
+      throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", {
+        field: "openingBalances",
+      });
     const item = raw as Record<string, unknown>;
     const assetId = cuidValue(String(item.assetId), "assetId");
     if (seen.has(assetId))
-      throw new ValidationError("DUPLICATE_ASSET", "Ativo repetido");
+      throw new ValidationError("DUPLICATE_ASSET", "errors.duplicateAsset");
     seen.add(assetId);
     const asset = assets.find((candidate) => candidate.id === assetId);
     if (!asset)
-      throw new ValidationError("ASSET_NOT_ALLOWED", "Ativo não encontrado");
+      throw new ValidationError("ASSET_NOT_ALLOWED", "errors.assetNotFound");
     if (!config.allowedAssetTypes.includes(asset.type))
       throw new ValidationError(
         "ASSET_NOT_ALLOWED",
-        "Ativo incompatível com o tipo",
+        "errors.assetIncompatible",
       );
-    const amount = parseDecimal(item.amount, "opening balance");
+    const amount = parseDecimal(item.amount, "openingBalance");
     if (amount.lt(0))
       throw new ValidationError(
         "VALIDATION_ERROR",
-        "Saldo inicial não pode ser negativo",
+        "errors.negativeOpeningBalance",
       );
-    validateScale(amount, asset, "opening balance");
+    validateScale(amount, asset, "openingBalance");
     return {
       asset,
       amount,
@@ -317,21 +340,21 @@ export function cardInput(
     if (required)
       throw new ValidationError(
         "CARD_PROFILE_REQUIRED",
-        "Perfil de cartão obrigatório",
+        "errors.card.profileRequired",
       );
     return undefined;
   }
   if (typeof raw !== "object")
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Perfil de cartão inválido",
+      "errors.card.invalidProfile",
     );
   const card = raw as Record<string, unknown>;
   const type = enumValue(card.type, cardTypes, "card.type");
   if (!config.allowedCardTypes.includes(type))
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Tipo de cartão incompatível",
+      "errors.card.typeIncompatible",
     );
   const lastFour =
     card.lastFour == null || card.lastFour === ""
@@ -340,7 +363,7 @@ export function cardInput(
   if (lastFour && !/^\d{4}$/.test(lastFour))
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Últimos quatro dígitos inválidos",
+      "errors.card.invalidLastFour",
     );
   const day = (value: unknown, field: string) =>
     value == null || value === ""
@@ -353,7 +376,8 @@ export function cardInput(
         : (() => {
             throw new ValidationError(
               "INVALID_CARD_PROFILE",
-              `${field} inválido`,
+              "errors.invalidField",
+              { field },
             );
           })();
   const closingDay = day(card.closingDay, "closingDay");
@@ -364,19 +388,19 @@ export function cardInput(
   )
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Fechamento e vencimento não se aplicam",
+      "errors.card.closingDueNotApplicable",
     );
   if (config.value === "CREDIT_CARD" && (!closingDay || !dueDay))
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Fechamento e vencimento são obrigatórios",
+      "errors.card.closingDueRequired",
     );
   const creditLimit =
     card.creditLimit == null || card.creditLimit === ""
       ? null
       : parseDecimal(card.creditLimit, "card.creditLimit");
   if (creditLimit?.lt(0))
-    throw new ValidationError("INVALID_CARD_PROFILE", "Limite inválido");
+    throw new ValidationError("INVALID_CARD_PROFILE", "errors.card.invalidLimit");
   const limitAssetId =
     card.limitAssetId == null || card.limitAssetId === ""
       ? null
@@ -384,7 +408,7 @@ export function cardInput(
   if (creditLimit && !limitAssetId)
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Ativo do limite é obrigatório",
+      "errors.card.limitAssetRequired",
     );
   if (
     limitAssetId &&
@@ -395,7 +419,7 @@ export function cardInput(
   )
     throw new ValidationError(
       "INVALID_CARD_PROFILE",
-      "Ativo do limite inválido",
+      "errors.card.invalidLimitAsset",
     );
   return {
     type,
@@ -403,12 +427,39 @@ export function cardInput(
       card.brand == null
         ? null
         : stringValue(card.brand, "card.brand", 40, false),
-    lastFour,
-    closingDay,
-    dueDay,
-    creditLimit,
-    limitAssetId,
+    last_four: lastFour,
+    closing_day: closingDay,
+    due_day: dueDay,
+    credit_limit: creditLimit,
+    limit_asset_id: limitAssetId,
+    ...cardExtras(card),
   };
+}
+
+/** Campos Amora do cartão: cashback estimado (fração, 0.012 = 1,2%) e conta pagadora. */
+function cardExtras(card: Record<string, unknown>) {
+  const out: {
+    cashback_rate?: Prisma.Decimal | null;
+    payment_account_id?: string | null;
+  } = {};
+  if ("cashbackRate" in card) {
+    const rate =
+      card.cashbackRate == null || card.cashbackRate === ""
+        ? null
+        : parseDecimal(card.cashbackRate, "card.cashbackRate");
+    if (rate && (rate.lt(0) || rate.gt(0.2)))
+      throw new ValidationError(
+        "INVALID_CARD_PROFILE",
+        "errors.card.invalidCashback",
+      );
+    out.cashback_rate = rate;
+  }
+  if ("paymentAccountId" in card)
+    out.payment_account_id =
+      card.paymentAccountId == null || card.paymentAccountId === ""
+        ? null
+        : cuidValue(String(card.paymentAccountId), "card.paymentAccountId");
+  return out;
 }
 
 export function parseAddAccountBalanceInput(body: Record<string, unknown>) {
@@ -419,35 +470,44 @@ export function parseAddAccountBalanceInput(body: Record<string, unknown>) {
   };
 }
 
-export function publicAccount(account: any) {
-  return {
-    ...account,
-    createdAt: account.createdAt.toISOString(),
-    updatedAt: account.updatedAt.toISOString(),
-    archivedAt: account.archivedAt?.toISOString() ?? null,
-    balances: account.balances.map((balance: any) => ({
+type PublicAccountInput = Prisma.accountsGetPayload<{
+  include: {
+    balances: {
+      include: { asset: true; entries: { include: { transaction: true } } };
+    };
+    card_profile: true;
+  };
+}>;
+
+/** DTO da conta para a API (camelCase, decimais em string, `openingDate` civil). */
+export function publicAccount(
+  account: Omit<PublicAccountInput, "balances"> & {
+    balances: Array<
+      Omit<PublicAccountInput["balances"][number], "entries"> & {
+        entries?: PublicAccountInput["balances"][number]["entries"];
+      }
+    >;
+  },
+) {
+  const { balances, card_profile, ...rest } = account;
+  return camelize({
+    ...rest,
+    balances: balances.map(({ entries, ...balance }) => ({
       ...balance,
-      currentBalance: balance.currentBalance.toString(),
-      availableBalance: balance.availableBalance?.toString() ?? null,
-      lastCalculatedAt: balance.lastCalculatedAt.toISOString(),
-      createdAt: balance.createdAt.toISOString(),
-      updatedAt: balance.updatedAt.toISOString(),
-      openingDate: balance.entries?.[0]?.transaction?.occurredAt
-        ? formatCanonicalInstantAsCivilDate(
-            balance.entries[0].transaction.occurredAt,
-          )
+      current_balance: balance.current_balance.toString(),
+      available_balance: balance.available_balance?.toString() ?? null,
+      opening_date: entries?.[0]?.transaction?.occurred_at
+        ? formatCanonicalInstantAsCivilDate(entries[0].transaction.occurred_at)
         : null,
-      asset: balance.asset,
     })),
-    cardProfile: account.cardProfile
+    card_profile: card_profile
       ? {
-          ...account.cardProfile,
-          creditLimit: account.cardProfile.creditLimit?.toString() ?? null,
-          createdAt: account.cardProfile.createdAt.toISOString(),
-          updatedAt: account.cardProfile.updatedAt.toISOString(),
+          ...card_profile,
+          credit_limit: card_profile.credit_limit?.toString() ?? null,
+          cashback_rate: card_profile.cashback_rate?.toString() ?? null,
         }
       : null,
-  };
+  }) as Record<string, unknown>;
 }
 
 export const activeAccount = { status: AccountStatus.ACTIVE };

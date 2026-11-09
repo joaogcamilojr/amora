@@ -4,6 +4,10 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { useToast } from "@/components/ui/toast-provider";
+import { useI18n } from "@/lib/i18n/client";
+
+type ShareRole = "OWNER" | "VIEWER" | "TRANSACTION_MANAGER";
+const ROLES = new Set<string>(["OWNER", "VIEWER", "TRANSACTION_MANAGER"]);
 
 type Member = {
   id: string;
@@ -17,6 +21,7 @@ export function SharePanel({ accountId }: { accountId: string }) {
   const [role, setRole] = useState("VIEWER");
   const [message, setMessage] = useState("");
   const { toast } = useToast();
+  const { t } = useI18n();
   async function load() {
     const response = await fetch(`/api/v1/accounts/${accountId}/members`);
     const body = await response.json();
@@ -35,53 +40,57 @@ export function SharePanel({ accountId }: { accountId: string }) {
     });
     const body = await response.json();
     if (!response.ok) {
-      setMessage(body.error?.message || "Não foi possível compartilhar.");
+      setMessage(body.error?.message || t("accounts.share.failed"));
       toast({
         variant: "error",
-        title: "Compartilhamento não concluído",
-        description: "Verifique os dados e a permissão.",
+        title: t("accounts.share.failedTitle"),
+        description: t("accounts.share.failedDescription"),
       });
       return;
     }
     setEmail("");
     setMessage(
-      body.data.accepted ? "Acesso concedido." : "Convite pendente criado.",
+      body.data.accepted
+        ? t("accounts.share.granted")
+        : t("accounts.share.pending"),
     );
     toast({
       variant: "success",
       title: body.data.accepted
-        ? "Acesso concedido"
-        : "Convite pendente criado",
+        ? t("accounts.share.grantedTitle")
+        : t("accounts.share.pendingTitle"),
     });
     load();
   }
   return (
     <section className="share-panel">
-      <h2>Compartilhar conta</h2>
+      <h2>{t("accounts.share.title")}</h2>
       <form className="share-form" onSubmit={share}>
         <label>
-          E-mail
+          {t("accounts.share.email")}
           <input
             required
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="pessoa@exemplo.com"
+            placeholder={t("accounts.share.emailPlaceholder")}
           />
         </label>
         <label>
-          Permissão
+          {t("accounts.share.permission")}
           <select
             value={role}
             onChange={(event) => setRole(event.target.value)}
           >
-            <option value="VIEWER">Viewer — consulta</option>
+            <option value="VIEWER">{t("enums.memberRole.VIEWER")}</option>
             <option value="TRANSACTION_MANAGER">
-              Transaction manager — lançamentos
+              {t("enums.memberRole.TRANSACTION_MANAGER")}
             </option>
           </select>
         </label>
-        <button className="button button-small">Compartilhar</button>
+        <button className="button button-small">
+          {t("accounts.share.submit")}
+        </button>
       </form>
       {message && (
         <p className="share-message" role="status">
@@ -92,7 +101,11 @@ export function SharePanel({ accountId }: { accountId: string }) {
         {members.map((member) => (
           <div key={member.id}>
             <span>{member.user.displayName || member.user.email}</span>
-            <em>{member.role.replaceAll("_", " ")}</em>
+            <em>
+              {ROLES.has(member.role)
+                ? t(`enums.memberRole.${member.role as ShareRole}`)
+                : member.role.replaceAll("_", " ")}
+            </em>
           </div>
         ))}
       </div>

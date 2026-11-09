@@ -1,16 +1,17 @@
 import { Resend } from "resend";
 
+import { logError } from "@/lib/log";
 import { emailTemplate, type EmailTemplateName } from "./templates";
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM;
 
 if (!resendApiKey) {
-  throw new Error("RESEND_API_KEY não configurada");
+  throw new Error("RESEND_API_KEY is not configured");
 }
 
 if (!resendFrom) {
-  throw new Error("RESEND_FROM não configurada");
+  throw new Error("RESEND_FROM is not configured");
 }
 
 const resend = new Resend(resendApiKey);
@@ -42,7 +43,7 @@ export async function sendTemplateEmail({
   });
 
   if (error) {
-    console.error("Resend template error", error);
+    logError("resend", error);
     return { data: null, error };
   }
 

@@ -1,10 +1,15 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n/client";
+
 export function Skeleton({ className = "" }: { className?: string }) {
   return <span className={`skeleton ${className}`} aria-hidden="true" />;
 }
 
 export function PageSkeleton() {
+  const { t } = useI18n();
   return (
-    <div className="state-stack" aria-label="Carregando conteúdo">
+    <div className="state-stack" aria-label={t("ui.loading.content")}>
       <Skeleton className="skeleton-kicker" />
       <Skeleton className="skeleton-title" />
       <Skeleton className="skeleton-copy" />
@@ -29,8 +34,9 @@ export function CardSkeleton() {
 }
 
 export function ListSkeleton() {
+  const { t } = useI18n();
   return (
-    <div className="skeleton-list" aria-label="Carregando lista">
+    <div className="skeleton-list" aria-label={t("ui.loading.list")}>
       {[1, 2, 3].map((item) => (
         <CardSkeleton key={item} />
       ))}
@@ -39,8 +45,9 @@ export function ListSkeleton() {
 }
 
 export function FormSkeleton() {
+  const { t } = useI18n();
   return (
-    <div className="skeleton-form" aria-label="Carregando formulário">
+    <div className="skeleton-form" aria-label={t("ui.loading.form")}>
       <Skeleton className="skeleton-title" />
       {[1, 2, 3, 4].map((item) => (
         <Skeleton className="skeleton-field" key={item} />

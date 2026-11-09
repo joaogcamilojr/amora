@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 
 import { addAccountBalance } from "@/lib/account-service";
 import { getSession } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { caughtError, unauthorizedResponse } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 import {
   parseAddAccountBalanceInput,
   publicAccount,
@@ -12,15 +13,14 @@ import {
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, context: Context) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await context.params;
   try {
     const input = parseAddAccountBalanceInput(
       (await request.json()) as Record<string, unknown>,
     );
     const account = await addAccountBalance(
-      session.userId,
+      session.user_id,
       id,
       input.assetId,
       input.amount,
@@ -40,12 +40,12 @@ export async function POST(request: NextRequest, context: Context) {
         : ["CONFLICT", "ACCOUNT_ARCHIVED"].includes(code)
           ? 409
           : 400;
-    return jsonError(
+    return caughtError(
+      session.user_id,
       status,
       code,
-      error instanceof Error
-        ? error.message
-        : "Não foi possível adicionar o saldo.",
+      error,
+      "errors.accounts.addBalanceFailed",
     );
   }
 }

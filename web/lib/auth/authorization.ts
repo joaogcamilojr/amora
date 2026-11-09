@@ -1,31 +1,37 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { AccountMemberRole, AccountStatus } from "@prisma/client";
+import { AccountMemberRole, AccountStatus, type Prisma } from "@prisma/client";
 
+import {
+  accountAccessWhere,
+  accountRoleInclude,
+  resolveAccountRole,
+} from "@/lib/auth/access";
 import { prisma } from "@/lib/prisma";
 
-export type AccountAccess = { account: any; role: AccountMemberRole };
+export type AccountAccess = {
+  account: Prisma.accountsGetPayload<{
+    include: { balances: { include: { asset: true } }; card_profile: true };
+  }>;
+  role: AccountMemberRole;
+};
 
 export async function getAccountAccess(
   userId: string,
   accountId: string,
 ): Promise<AccountAccess | null> {
-  const account = await prisma.account.findFirst({
+  const account = await prisma.accounts.findFirst({
     where: {
       id: accountId,
       status: AccountStatus.ACTIVE,
-      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+      ...accountAccessWhere(userId),
     },
-    include: { balances: { include: { asset: true } }, cardProfile: true },
+    include: {
+      balances: { include: { asset: true } },
+      card_profile: true,
+      ...accountRoleInclude(userId),
+    },
   });
   if (!account) return null;
-  const role =
-    account.ownerId === userId
-      ? AccountMemberRole.OWNER
-      : (
-          await prisma.accountMember.findUnique({
-            where: { accountId_userId: { accountId, userId } },
-          })
-        )?.role;
+  const role = resolveAccountRole(userId, account);
   return role ? { account, role } : null;
 }
 

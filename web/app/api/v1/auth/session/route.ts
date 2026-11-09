@@ -1,20 +1,22 @@
 import { getSession } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { localizedError } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 
 export async function GET() {
   const session = await getSession();
   if (!session)
-    return jsonError(
+    return localizedError(
+      null,
       401,
       "UNAUTHORIZED",
-      "Session is missing, expired or revoked.",
+      "errors.auth.sessionMissing",
     );
   return jsonData({
     user: {
       id: session.user.id,
       email: session.user.email,
-      displayName: session.user.displayName,
-      baseAssetId: session.user.baseAssetId,
+      displayName: session.user.display_name,
+      baseAssetId: session.user.base_asset_id,
     },
   });
 }

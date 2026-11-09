@@ -7,7 +7,15 @@ export type AssetScale = { code: string; decimals: number };
 const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 const MAX_SCALE = 18;
 
-export class MoneyValidationError extends Error {}
+/** Erro de valor monetário. `message` é uma chave do catálogo (`errors.*`), com `vars` para interpolação. */
+export class MoneyValidationError extends Error {
+  constructor(
+    message: string,
+    public vars?: Record<string, string | number>,
+  ) {
+    super(message);
+  }
+}
 
 export function parseDecimal(value: unknown, field = "amount"): Prisma.Decimal {
   if (
@@ -16,7 +24,7 @@ export function parseDecimal(value: unknown, field = "amount"): Prisma.Decimal {
     value.includes("e") ||
     value.includes("E")
   ) {
-    throw new MoneyValidationError(`${field} must be a decimal string`);
+    throw new MoneyValidationError("errors.decimalString", { field });
   }
   const scale = value.includes(".") ? value.length - value.indexOf(".") - 1 : 0;
   if (scale > MAX_SCALE || value === "0" || /^0\.0+$/.test(value))
@@ -25,7 +33,7 @@ export function parseDecimal(value: unknown, field = "amount"): Prisma.Decimal {
     new Prisma.Decimal(value).isNaN() ||
     !new Prisma.Decimal(value).isFinite()
   ) {
-    throw new MoneyValidationError(`${field} is invalid`);
+    throw new MoneyValidationError("errors.invalidField", { field });
   }
   return new Prisma.Decimal(value);
 }
@@ -38,14 +46,16 @@ export function validateScale(
   const text = value.toFixed(MAX_SCALE).replace(/0+$/, "").replace(/\.$/, "");
   const scale = text.includes(".") ? text.length - text.indexOf(".") - 1 : 0;
   if (scale > asset.decimals)
-    throw new MoneyValidationError(
-      `${field} supports at most ${asset.decimals} decimals for ${asset.code}`,
-    );
+    throw new MoneyValidationError("errors.maxDecimals", {
+      field,
+      decimals: asset.decimals,
+      code: asset.code,
+    });
 }
 
 export function positive(value: Prisma.Decimal, field = "amount"): void {
   if (!value.isFinite() || !value.gt(0))
-    throw new MoneyValidationError(`${field} must be greater than zero`);
+    throw new MoneyValidationError("errors.greaterThanZero", { field });
 }
 
 export function serializeDecimal(

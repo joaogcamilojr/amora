@@ -2,27 +2,22 @@
 
 ## Arquitetura
 
-`AppShell` mantém a estrutura única: `AppSidebar` ou `MobileSidebar`, `AppHeader` e conteúdo autenticado. O `ToastProvider` fica no shell, portanto sobrevive à navegação cliente.
+`AppShell` mantém a estrutura única: sidebar, barra mobile e conteúdo autenticado. O `ToastProvider` fica no shell, portanto sobrevive à navegação cliente.
 
-Rotas reais da navegação: `/dashboard`, `/accounts` e `/accounts/new`. A configuração está em `lib/navigation/navigation.ts`.
+Rotas da navegação: `/dashboard`, `/transactions`, `/cards`, `/recurring`, `/accounts`, `/holdings`, `/trips`, `/import`. A configuração está em `lib/navigation/navigation.ts`.
 
 ## Sidebar
 
-Desktop: branca, 256px expandida e 76px recolhida. A preferência visual usa `cash-flow-sidebar-collapsed` em `localStorage`, somente após montagem no cliente. O primeiro render é expandido para evitar hydration mismatch.
-
-Mobile: drawer com overlay, Escape, botão de fechar, fechamento ao navegar e bloqueio de rolagem do body. O foco vai para fechar ao abrir.
+`components/app-shell/app-shell.tsx`: sidebar grafite (`neutral-950`) de 248px no desktop, grupos **Acompanhar**, **Patrimônio** e **Dados** definidos em `lib/navigation/navigation.ts` (`navigationGroups`, `isActive`). No mobile vira barra superior com navegação horizontal. Menu do usuário (`user-menu.tsx`) no rodapé com sair.
 
 ## Visual
 
-Tokens do app ficam no bloco `/* App shell */` de `app/globals.css`: fundo `#F6FAFF`, superfícies brancas, azul `#4E73DF`, texto `#212529`, borda `#DCE5F1` e estados semânticos.
-
-Ícones são SVG React locais, usam `currentColor` e recebem nome acessível do controle pai.
+Tokens do design system Apgees no bloco `@theme` de `app/globals.css`; ver `../../docs/design-system.md`. O conteúdo do app fica dentro de `.ds-app`.
 
 ## Componentes
 
 - `PageContainer`: tamanhos `default`, `wide`, `form`.
 - `PageHeader`: eyebrow, título, descrição, ações e voltar.
-- `Breadcrumbs`: somente rotas conhecidas; último item não é link.
 - `LoadingState`/skeletons: estrutura sem valores financeiros falsos.
 - `EmptyState` e `ErrorState`: estados reutilizáveis e seguros.
 - `ToastProvider`: quatro variantes, máximo de três, fechamento manual e auto-dismiss de cinco segundos; erros permanecem.

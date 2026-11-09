@@ -1,11 +1,9 @@
+"use client";
+
 import { AccountType, AssetType } from "@prisma/client";
 
 import { getAccountTypeConfiguration } from "@/lib/accounts/account-types";
-
-const today = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-};
+import { useI18n } from "@/lib/i18n/client";
 
 export type Asset = {
   id: string;
@@ -34,6 +32,7 @@ export function OpeningBalancesEditor({
   items: OpeningBalanceFormItem[];
   onChange: (items: OpeningBalanceFormItem[]) => void;
 }) {
+  const { t, fmt } = useI18n();
   const config = getAccountTypeConfiguration(type);
   const compatible = assets.filter((asset) =>
     config.allowedAssetTypes.includes(asset.type),
@@ -45,19 +44,21 @@ export function OpeningBalancesEditor({
         localId: crypto.randomUUID(),
         assetId: "",
         amount: "0",
-        openingDate: today(),
+        openingDate: fmt.today(),
       },
     ]);
   const catalogMessage =
     assets.length === 0
-      ? "Catálogo de ativos vazio. Provisione moedas antes de informar saldo inicial."
-      : `Nenhum ativo compatível com ${config.label}.`;
+      ? t("accounts.opening.emptyCatalog")
+      : t("accounts.opening.noCompatible", {
+          type: t(`enums.accountType.${config.value}.label`),
+        });
   return (
     <div className="opening-editor">
       {items.map((item, index) => (
         <div className="opening-row" key={item.localId}>
           <label>
-            Ativo
+            {t("accounts.opening.asset")}
             <select
               required
               value={item.assetId}
@@ -74,8 +75,8 @@ export function OpeningBalancesEditor({
             >
               <option value="">
                 {compatible.length
-                  ? "Selecione a moeda"
-                  : "Sem moedas disponíveis"}
+                  ? t("accounts.opening.selectCurrency")
+                  : t("accounts.opening.noCurrencies")}
               </option>
               {compatible
                 .filter(
@@ -87,14 +88,14 @@ export function OpeningBalancesEditor({
                 )
                 .map((asset) => (
                   <option value={asset.id} key={asset.id}>
-                    {asset.symbol} {asset.code} — {asset.name} ({asset.decimals}{" "}
-                    casas)
+                    {asset.symbol} {asset.code} — {asset.name}{" "}
+                    {t("accounts.opening.decimals", { count: asset.decimals })}
                   </option>
                 ))}
             </select>
           </label>
           <label>
-            Saldo inicial
+            {t("accounts.opening.openingBalance")}
             <input
               required
               inputMode="decimal"
@@ -111,7 +112,7 @@ export function OpeningBalancesEditor({
             />
           </label>
           <label>
-            Data
+            {t("common.fields.date")}
             <input
               required
               type="date"
@@ -137,15 +138,13 @@ export function OpeningBalancesEditor({
                 )
               }
             >
-              Remover
+              {t("accounts.opening.remove")}
             </button>
           )}
         </div>
       ))}
       {!items.length && (
-        <p className="field-note">
-          Nenhum saldo inicial. Você pode começar com saldo zero.
-        </p>
+        <p className="field-note">{t("accounts.opening.none")}</p>
       )}
       {config.assetSelection === "multiple" && (
         <button
@@ -154,7 +153,7 @@ export function OpeningBalancesEditor({
           disabled={!compatible.length || items.length >= compatible.length}
           onClick={add}
         >
-          + Adicionar moeda
+          {t("accounts.opening.addCurrency")}
         </button>
       )}
       {!compatible.length && <p className="field-note">{catalogMessage}</p>}

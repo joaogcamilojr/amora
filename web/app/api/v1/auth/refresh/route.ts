@@ -3,7 +3,8 @@ import { NextRequest } from "next/server";
 
 import { REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
 import { rotateRefreshToken, setAuthCookies } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { localizedError } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as Record<
@@ -15,13 +16,19 @@ export async function POST(request: NextRequest) {
       ? body.refreshToken
       : (await cookies()).get(REFRESH_TOKEN_COOKIE)?.value;
   if (!token)
-    return jsonError(401, "REFRESH_TOKEN_REQUIRED", "Refresh token ausente.");
+    return localizedError(
+      null,
+      401,
+      "REFRESH_TOKEN_REQUIRED",
+      "errors.auth.refreshTokenMissing",
+    );
   const tokens = await rotateRefreshToken(token);
   if (!tokens)
-    return jsonError(
+    return localizedError(
+      null,
       401,
       "INVALID_REFRESH_TOKEN",
-      "Refresh token inválido ou expirado.",
+      "errors.auth.refreshTokenInvalid",
     );
   await setAuthCookies(tokens);
   return jsonData({

@@ -1,4 +1,8 @@
+"use client";
+
 import { CardType } from "@prisma/client";
+
+import { useI18n } from "@/lib/i18n/client";
 
 export type CardForm = {
   type: CardType;
@@ -8,15 +12,6 @@ export type CardForm = {
   dueDay: string;
   creditLimit: string;
   limitAssetId: string;
-};
-
-const labels: Record<CardType, string> = {
-  CREDIT: "Crédito",
-  DEBIT: "Débito",
-  PREPAID: "Pré-pago",
-  BENEFIT: "Benefício",
-  GIFT: "Gift card",
-  VIRTUAL: "Virtual",
 };
 
 export function CardProfileFields({
@@ -30,6 +25,7 @@ export function CardProfileFields({
   types: CardType[];
   assets: Array<{ id: string; code: string }>;
 }) {
+  const { t } = useI18n();
   const set = (key: keyof CardForm, next: string) =>
     onChange({ ...value, [key]: next });
   const noCycle = types.every((type) =>
@@ -46,41 +42,41 @@ export function CardProfileFields({
     <div className="card-fields">
       <div className="form-two">
         <label>
-          Tipo de cartão
+          {t("accounts.card.cardType")}
           <select
             value={value.type}
             onChange={(event) => set("type", event.target.value)}
           >
             {types.map((type) => (
               <option key={type} value={type}>
-                {labels[type]}
+                {t(`enums.cardType.${type}`)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Bandeira
+          {t("accounts.card.brand")}
           <input
             value={value.brand}
             onChange={(event) => set("brand", event.target.value)}
-            placeholder="Visa, Elo..."
+            placeholder={t("accounts.card.brandPlaceholder")}
           />
         </label>
       </div>
       <div className="form-two">
         <label>
-          Últimos quatro dígitos
+          {t("accounts.card.lastFour")}
           <input
             inputMode="numeric"
             maxLength={4}
             value={value.lastFour}
             onChange={(event) => set("lastFour", event.target.value)}
-            placeholder="Opcional"
+            placeholder={t("accounts.card.optional")}
           />
         </label>
         {!noCycle && (
           <label>
-            Dia de fechamento
+            {t("accounts.card.closingDay")}
             <input
               type="number"
               min="1"
@@ -94,7 +90,7 @@ export function CardProfileFields({
       {!noCycle && (
         <div className="form-two">
           <label>
-            Dia de vencimento
+            {t("accounts.card.dueDay")}
             <input
               type="number"
               min="1"
@@ -104,25 +100,25 @@ export function CardProfileFields({
             />
           </label>
           <label>
-            Limite
+            {t("accounts.card.limit")}
             <input
               inputMode="decimal"
               value={value.creditLimit}
               onChange={(event) => set("creditLimit", event.target.value)}
-              placeholder="Opcional"
+              placeholder={t("accounts.card.optional")}
             />
           </label>
         </div>
       )}
       {value.creditLimit && (
         <label>
-          Ativo do limite
+          {t("accounts.card.limitAsset")}
           <select
             required
             value={value.limitAssetId}
             onChange={(event) => set("limitAssetId", event.target.value)}
           >
-            <option value="">Selecione</option>
+            <option value="">{t("accounts.card.select")}</option>
             {assets.map((asset) => (
               <option value={asset.id} key={asset.id}>
                 {asset.code}
@@ -131,9 +127,7 @@ export function CardProfileFields({
           </select>
         </label>
       )}
-      <span className="field-note">
-        Nunca informe número completo do cartão ou CVV.
-      </span>
+      <span className="field-note">{t("accounts.card.securityNote")}</span>
     </div>
   );
 }

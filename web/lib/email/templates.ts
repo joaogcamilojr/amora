@@ -18,6 +18,18 @@ export const EMAIL_TEMPLATES = {
       "USER_NAME",
     ],
   },
+  /** Layout genérico das mensagens de exclusão de conta; o texto vem do catálogo i18n (`privacy.email.*`). */
+  accountDeletion: {
+    id: process.env.RESEND_TEMPLATE_ACCOUNT_DELETION ?? "",
+    variables: [
+      "USER_NAME",
+      "HEADLINE",
+      "MESSAGE",
+      "ACTION_URL",
+      "ACTION_LABEL",
+      "SUPPORT_URL",
+    ],
+  },
 } as const;
 
 export type EmailTemplateName = keyof typeof EMAIL_TEMPLATES;
@@ -26,8 +38,12 @@ export const emailTemplate = (name: EmailTemplateName) => {
   const template = EMAIL_TEMPLATES[name];
 
   if (!template.id) {
-    throw new Error(`Resend template ID não configurado: ${name}`);
+    throw new Error(`Resend template ID is not configured: ${name}`);
   }
 
   return { id: template.id };
 };
+
+/** Template sem ID configurado não envia (e-mails opcionais, como o aviso de exclusão). */
+export const isTemplateConfigured = (name: EmailTemplateName) =>
+  Boolean(EMAIL_TEMPLATES[name].id);

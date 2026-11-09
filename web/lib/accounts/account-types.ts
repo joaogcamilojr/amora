@@ -1,9 +1,9 @@
 import { AccountType, AssetType, CardType } from "@prisma/client";
 
+/** Regras por tipo de conta. Rótulo e descrição vêm do catálogo: `t(`enums.accountType.${type}.label`)`. */
+
 export type AccountTypeConfiguration = {
   value: AccountType;
-  label: string;
-  description: string;
   allowedAssetTypes: AssetType[];
   assetSelection: "single" | "multiple";
   requiresCountry: boolean;
@@ -26,8 +26,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
 > = {
   CASH_WALLET: {
     value: AccountType.CASH_WALLET,
-    label: "Carteira de dinheiro",
-    description: "Dinheiro físico ou saldo simples em uma moeda.",
     allowedAssetTypes: fiat,
     assetSelection: "single",
     requiresCountry: false,
@@ -42,8 +40,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   BANK_ACCOUNT: {
     value: AccountType.BANK_ACCOUNT,
-    label: "Conta bancária",
-    description: "Conta bancária tradicional em uma moeda fiduciária.",
     allowedAssetTypes: fiat,
     assetSelection: "single",
     requiresCountry: true,
@@ -58,9 +54,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   INTERNATIONAL_ACCOUNT: {
     value: AccountType.INTERNATIONAL_ACCOUNT,
-    label: "Conta internacional",
-    description:
-      "Conta local ou internacional com uma ou mais moedas fiduciárias.",
     allowedAssetTypes: fiat,
     assetSelection: "multiple",
     requiresCountry: true,
@@ -75,8 +68,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   MULTI_CURRENCY_ACCOUNT: {
     value: AccountType.MULTI_CURRENCY_ACCOUNT,
-    label: "Conta multimoeda",
-    description: "Vários saldos fiduciários separados por moeda.",
     allowedAssetTypes: fiat,
     assetSelection: "multiple",
     requiresCountry: true,
@@ -91,8 +82,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   BENEFIT_ACCOUNT: {
     value: AccountType.BENEFIT_ACCOUNT,
-    label: "Conta ou saldo de benefício",
-    description: "Vale, benefício corporativo ou saldo de mobilidade.",
     allowedAssetTypes: fiatPoints,
     assetSelection: "single",
     requiresCountry: true,
@@ -107,8 +96,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   GIFT_CARD: {
     value: AccountType.GIFT_CARD,
-    label: "Gift card",
-    description: "Cartão-presente ou crédito de loja.",
     allowedAssetTypes: fiatPoints,
     assetSelection: "single",
     requiresCountry: true,
@@ -123,8 +110,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   DIGITAL_BALANCE: {
     value: AccountType.DIGITAL_BALANCE,
-    label: "Saldo digital",
-    description: "Saldo mantido em aplicativo, plataforma ou serviço.",
     allowedAssetTypes: [AssetType.FIAT, AssetType.POINTS, AssetType.OTHER],
     assetSelection: "single",
     requiresCountry: true,
@@ -139,9 +124,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   CRYPTO_WALLET: {
     value: AccountType.CRYPTO_WALLET,
-    label: "Carteira de criptoativos",
-    description:
-      "Um ou mais criptoativos. Nunca informe chave privada ou seed phrase.",
     allowedAssetTypes: [AssetType.CRYPTO],
     assetSelection: "multiple",
     requiresCountry: false,
@@ -156,8 +138,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   CREDIT_CARD: {
     value: AccountType.CREDIT_CARD,
-    label: "Cartão de crédito",
-    description: "Limite e fatura em uma moeda fiduciária.",
     allowedAssetTypes: fiat,
     assetSelection: "single",
     requiresCountry: true,
@@ -172,8 +152,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   PREPAID_CARD: {
     value: AccountType.PREPAID_CARD,
-    label: "Cartão pré-pago",
-    description: "Cartão pré-pago físico ou virtual.",
     allowedAssetTypes: fiat,
     assetSelection: "multiple",
     requiresCountry: true,
@@ -188,9 +166,6 @@ export const ACCOUNT_TYPE_CONFIGURATIONS: Record<
   },
   OTHER: {
     value: AccountType.OTHER,
-    label: "Outro",
-    description:
-      "Tipo personalizado. Revise os indicadores de patrimônio e saldo disponível.",
     allowedAssetTypes: [
       AssetType.FIAT,
       AssetType.CRYPTO,

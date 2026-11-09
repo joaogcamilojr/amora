@@ -39,6 +39,13 @@ enum AccountMemberRole {
   TRANSACTION_MANAGER
 }
 
+/// Papel no grupo familiar (household). Define o acesso às contas vinculadas ao grupo.
+enum HouseholdRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
 enum InvitationStatus {
   PENDING
   ACCEPTED
@@ -57,6 +64,47 @@ enum LedgerTransactionType {
   FEE
   INTEREST_INCOME
   CARD_PAYMENT
+  INVESTMENT
+}
+
+/// Situação do lançamento: postado (fato), pendente (em processamento no emissor) ou estimado.
+enum TransactionStatus {
+  POSTED
+  PENDING
+  ESTIMATED
+}
+
+enum CategoryKind {
+  INCOME
+  EXPENSE
+}
+
+enum RecurrenceFrequency {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  YEARLY
+}
+
+enum HoldingClass {
+  REAL_ESTATE
+  VEHICLE
+  FIXED_INCOME
+  EQUITY
+  INTERNATIONAL
+  CRYPTO
+  PENSION
+  OTHER
+}
+
+enum ImportFormat {
+  CSV
+  OFX
+  PDF
+  IMAGE
+  MANUAL
+  LEGACY
 }
 
 enum LedgerEntryDirection {
@@ -69,6 +117,40 @@ enum ExchangeRateSource {
   MANUAL
   CARD_STATEMENT
   ACCOUNT_STATEMENT
+}
+
+enum PrivacyRequestType {
+  EXPORT
+  DELETION
+}
+
+enum PrivacyRequestStatus {
+  PENDING
+  CANCELED
+  COMPLETED
+}
+
+enum PlanCode {
+  START
+  PREMIUM
+  FAMILY
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum ConsentKind {
+  TERMS
+  PRIVACY
 }
 
 enum CardType {
@@ -87,337 +169,688 @@ enum YieldType {
   MANUAL
 }
 
-model User {
-  id                  String                   @id @default(cuid())
-  email               String                   @unique
-  emailVerifiedAt     DateTime?
-  displayName         String?
-  baseAssetId         String?
-  locale              String                   @default("pt-BR")
-  timezone            String                   @default("America/Sao_Paulo")
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
-  archivedAt          DateTime?
-  baseAsset           Asset?                   @relation("UserBaseAsset", fields: [baseAssetId], references: [id], onDelete: SetNull)
-  ownedAccounts       Account[]                @relation("AccountOwner")
-  memberships         AccountMember[]
-  sessions            AuthSession[]
-  refreshTokens       AuthRefreshToken[]
-  emailVerifications  EmailVerificationToken[]
-  loginCodes          LoginCode[]
-  createdTransactions LedgerTransaction[]      @relation("TransactionCreator")
-  sentInvitations     AccountShareInvitation[] @relation("InvitationSender")
+model users {
+  id                         String                      @id @default(cuid())
+  email                      String                      @unique
+  email_verified_at          DateTime?
+  display_name               String?
+  base_asset_id              String?
+  /// Workspace selecionado: filtra as telas pelas contas deste household. Nulo = todas as contas acessíveis.
+  active_household_id        String?
+  /// País de residência (ISO 3166-1 alpha-2). Base do pacote inicial e do KPI "fora do país" em Bens.
+  country_code               String?                     @db.VarChar(2)
+  /// Preenchido ao concluir ou pular o onboarding de primeiro acesso.
+  onboarded_at               DateTime?
+  locale                     String                      @default("pt-BR")
+  timezone                   String                      @default("UTC")
+  created_at                 DateTime                    @default(now())
+  updated_at                 DateTime                    @updatedAt
+  archived_at                DateTime?
+  base_asset                 assets?                     @relation("UserBaseAsset", fields: [base_asset_id], references: [id], onDelete: SetNull)
+  active_household           households?                 @relation("UserActiveHousehold", fields: [active_household_id], references: [id], onDelete: SetNull)
+  household_memberships      household_members[]
+  created_households         households[]                @relation("HouseholdCreator")
+  sent_household_invitations household_invitations[]     @relation("HouseholdInvitationSender")
+  owned_accounts             accounts[]                  @relation("AccountOwner")
+  exchange_rates             exchange_rates[]            @relation("RateOwner")
+  privacy_requests           privacy_requests[]
+  subscription               subscriptions?
+  consents                   consents[]
+  memberships                account_members[]
+  sessions                   auth_sessions[]
+  refresh_tokens             auth_refresh_tokens[]
+  email_verifications        email_verification_tokens[]
+  login_codes                login_codes[]
+  created_transactions       ledger_transactions[]       @relation("TransactionCreator")
+  sent_invitations           account_share_invitations[] @relation("InvitationSender")
+  categories                 categories[]
+  classification_rules       classification_rules[]
+  recurring_items            recurring_items[]
+  holdings                   holdings[]
+  trips                      trips[]
+  import_batches             import_batches[]
 }
 
-model AuthSession {
+model auth_sessions {
+  id           String    @id @default(cuid())
+  user_id      String
+  token_hash   String    @unique
+  expires_at   DateTime
+  last_seen_at DateTime  @default(now())
+  created_at   DateTime  @default(now())
+  revoked_at   DateTime?
+  user_agent   String?
+  user         users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, expires_at])
+  @@index([expires_at])
+}
+
+model auth_refresh_tokens {
+  id          String    @id @default(cuid())
+  user_id     String
+  token_hash  String    @unique
+  expires_at  DateTime
+  created_at  DateTime  @default(now())
+  revoked_at  DateTime?
+  replaced_by String?
+  user_agent  String?
+  user        users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, expires_at])
+  @@index([expires_at])
+}
+
+model email_verification_tokens {
   id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  lastSeenAt DateTime  @default(now())
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
-  userAgent  String?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+  user       users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([userId, expiresAt])
-  @@index([expiresAt])
+  @@index([user_id, expires_at])
 }
 
-model AuthRefreshToken {
+model login_codes {
   id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
-  replacedBy String?
-  userAgent  String?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user_id    String
+  code_hash  String
+  expires_at DateTime
+  used_at    DateTime?
+  attempts   Int       @default(0)
+  created_at DateTime  @default(now())
+  user       users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([userId, expiresAt])
-  @@index([expiresAt])
+  @@index([user_id, expires_at])
 }
 
-model EmailVerificationToken {
-  id        String    @id @default(cuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, expiresAt])
-}
-
-model LoginCode {
-  id        String    @id @default(cuid())
-  userId    String
-  codeHash  String
-  expiresAt DateTime
-  usedAt    DateTime?
-  attempts  Int       @default(0)
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, expiresAt])
-}
-
-model Asset {
-  id                  String               @id @default(cuid())
-  code                String               @unique
-  name                String
-  symbol              String
-  type                AssetType
-  decimals            Int
-  active              Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  baseUsers           User[]               @relation("UserBaseAsset")
-  balances            AccountBalance[]
-  ledgerEntries       LedgerEntry[]
-  ratesFrom           ExchangeRate[]       @relation("RateFromAsset")
-  ratesTo             ExchangeRate[]       @relation("RateToAsset")
-  cardLimits          CardProfile[]        @relation("CardLimitAsset")
-  yieldConfigurations YieldConfiguration[]
-  fxFrom              FxConversion[]       @relation("FxFromAsset")
-  fxTo                FxConversion[]       @relation("FxToAsset")
-  fxFee               FxConversion[]       @relation("FxFeeAsset")
+model assets {
+  id                   String                 @id @default(cuid())
+  code                 String                 @unique
+  name                 String
+  symbol               String
+  type                 AssetType
+  decimals             Int
+  active               Boolean                @default(true)
+  created_at           DateTime               @default(now())
+  updated_at           DateTime               @updatedAt
+  base_users           users[]                @relation("UserBaseAsset")
+  balances             account_balances[]
+  ledger_entries       ledger_entries[]
+  rates_from           exchange_rates[]       @relation("RateFromAsset")
+  rates_to             exchange_rates[]       @relation("RateToAsset")
+  card_limits          card_profiles[]        @relation("CardLimitAsset")
+  yield_configurations yield_configurations[]
+  fx_from              fx_conversions[]       @relation("FxFromAsset")
+  fx_to                fx_conversions[]       @relation("FxToAsset")
+  fx_fee               fx_conversions[]       @relation("FxFeeAsset")
+  card_statements      card_statements[]
+  recurring_items      recurring_items[]
+  holdings             holdings[]
+  base_transactions    ledger_transactions[]  @relation("TransactionBaseAsset")
 
   @@index([active, type])
 }
 
-model Account {
-  id                        String                   @id @default(cuid())
-  ownerId                   String
-  name                      String
-  type                      AccountType
-  status                    AccountStatus            @default(ACTIVE)
-  description               String?
-  institutionName           String?
-  countryCode               String?                  @db.VarChar(2)
-  externalReference         String?
-  color                     String?
-  icon                      String?
-  includeInNetWorth         Boolean                  @default(true)
-  includeInAvailableBalance Boolean                  @default(true)
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  archivedAt                DateTime?
-  owner                     User                     @relation("AccountOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  balances                  AccountBalance[]
-  members                   AccountMember[]
-  invitations               AccountShareInvitation[]
-  cardProfile               CardProfile?
-  yieldConfigurations       YieldConfiguration[]
-  transactions              LedgerTransaction[]
-  ledgerEntries             LedgerEntry[]
+model accounts {
+  id                           String                      @id @default(cuid())
+  owner_id                     String
+  name                         String
+  type                         AccountType
+  status                       AccountStatus               @default(ACTIVE)
+  description                  String?
+  institution_name             String?
+  country_code                 String?                     @db.VarChar(2)
+  external_reference           String?
+  color                        String?
+  icon                         String?
+  include_in_net_worth         Boolean                     @default(true)
+  include_in_available_balance Boolean                     @default(true)
+  /// Titular informado quando a conta é de outro membro da família/household sem usuário próprio.
+  holder_name                  String?
+  /// Grupo familiar ao qual a conta pertence; os membros do grupo acessam a conta conforme o papel.
+  household_id                 String?
+  /// Titular da conta: membro do grupo (com ou sem login). Substitui `holder_name` quando preenchido.
+  holder_member_id             String?
+  notes                        String?
+  created_at                   DateTime                    @default(now())
+  updated_at                   DateTime                    @updatedAt
+  archived_at                  DateTime?
+  owner                        users                       @relation("AccountOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  household                    households?                 @relation(fields: [household_id], references: [id], onDelete: SetNull)
+  holder_member                household_members?          @relation("AccountHolder", fields: [holder_member_id], references: [id], onDelete: SetNull)
+  balances                     account_balances[]
+  members                      account_members[]
+  invitations                  account_share_invitations[]
+  card_profile                 card_profiles?              @relation("AccountCardProfile")
+  yield_configurations         yield_configurations[]
+  transactions                 ledger_transactions[]
+  ledger_entries               ledger_entries[]
+  card_statements              card_statements[]
+  recurring_items              recurring_items[]
+  import_batches               import_batches[]
+  paid_cards                   card_profiles[]             @relation("CardPaymentAccount")
 
-  @@index([ownerId, status, updatedAt])
-  @@index([ownerId, type])
+  @@index([owner_id, status, updated_at])
+  @@index([owner_id, type])
+  @@index([household_id, status])
+  @@index([holder_member_id])
 }
 
-model AccountBalance {
-  id               String            @id @default(cuid())
-  accountId        String
-  assetId          String
-  currentBalance   Decimal           @default(0) @db.Decimal(38, 18)
-  availableBalance Decimal?          @db.Decimal(38, 18)
-  lastCalculatedAt DateTime          @default(now())
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  account          Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  asset            Asset             @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  entries          LedgerEntry[]
-  snapshots        BalanceSnapshot[]
+model account_balances {
+  id                 String              @id @default(cuid())
+  account_id         String
+  asset_id           String
+  current_balance    Decimal             @default(0) @db.Decimal(38, 18)
+  available_balance  Decimal?            @db.Decimal(38, 18)
+  last_calculated_at DateTime            @default(now())
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  account            accounts            @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  asset              assets              @relation(fields: [asset_id], references: [id], onDelete: Restrict)
+  entries            ledger_entries[]
+  snapshots          balance_snapshots[]
 
-  @@unique([accountId, assetId])
-  @@index([accountId, assetId])
+  @@unique([account_id, asset_id])
+  @@index([account_id, asset_id])
 }
 
-model AccountMember {
-  id        String            @id @default(cuid())
-  accountId String
-  userId    String
-  role      AccountMemberRole
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  account   Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+model account_members {
+  id         String            @id @default(cuid())
+  account_id String
+  user_id    String
+  role       AccountMemberRole
+  created_at DateTime          @default(now())
+  updated_at DateTime          @updatedAt
+  account    accounts          @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  user       users             @relation(fields: [user_id], references: [id], onDelete: Restrict)
 
-  @@unique([accountId, userId])
-  @@index([userId, accountId])
+  @@unique([account_id, user_id])
+  @@index([user_id, account_id])
 }
 
-model AccountShareInvitation {
-  id              String            @id @default(cuid())
-  accountId       String
-  invitedByUserId String
-  email           String
-  role            AccountMemberRole
-  status          InvitationStatus  @default(PENDING)
-  tokenHash       String?           @unique
-  expiresAt       DateTime
-  acceptedAt      DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  account         Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  invitedBy       User              @relation("InvitationSender", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+model account_share_invitations {
+  id                 String            @id @default(cuid())
+  account_id         String
+  invited_by_user_id String
+  email              String
+  role               AccountMemberRole
+  status             InvitationStatus  @default(PENDING)
+  token_hash         String?           @unique
+  expires_at         DateTime
+  accepted_at        DateTime?
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  account            accounts          @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  invited_by         users             @relation("InvitationSender", fields: [invited_by_user_id], references: [id], onDelete: Restrict)
 
   @@index([email, status])
-  @@index([accountId, status])
+  @@index([account_id, status])
 }
 
-model CardProfile {
-  accountId    String   @id
-  type         CardType
-  brand        String?
-  lastFour     String?  @db.VarChar(4)
-  closingDay   Int?
-  dueDay       Int?
-  creditLimit  Decimal? @db.Decimal(38, 18)
-  limitAssetId String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  account      Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  limitAsset   Asset?   @relation("CardLimitAsset", fields: [limitAssetId], references: [id], onDelete: SetNull)
+model card_profiles {
+  account_id         String    @id
+  type               CardType
+  brand              String?
+  last_four          String?   @db.VarChar(4)
+  closing_day        Int?
+  due_day            Int?
+  credit_limit       Decimal?  @db.Decimal(38, 18)
+  limit_asset_id     String?
+  /// Cashback estimado sobre compras líquidas da fatura (0.012 = 1,2%). Juros/encargos não entram.
+  cashback_rate      Decimal?  @db.Decimal(24, 12)
+  /// Conta que normalmente paga a fatura.
+  payment_account_id String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  account            accounts  @relation("AccountCardProfile", fields: [account_id], references: [id], onDelete: Restrict)
+  limit_asset        assets?   @relation("CardLimitAsset", fields: [limit_asset_id], references: [id], onDelete: SetNull)
+  payment_account    accounts? @relation("CardPaymentAccount", fields: [payment_account_id], references: [id], onDelete: SetNull)
 
-  @@index([limitAssetId])
+  @@index([limit_asset_id])
+  @@index([payment_account_id])
 }
 
-model YieldConfiguration {
-  id           String    @id @default(cuid())
-  accountId    String
-  assetId      String
-  type         YieldType
-  annualRate   Decimal?  @db.Decimal(24, 12)
-  providerName String?
-  active       Boolean   @default(true)
-  startedAt    DateTime
-  endedAt      DateTime?
-  metadata     Json?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  account      Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  asset        Asset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+model yield_configurations {
+  id            String    @id @default(cuid())
+  account_id    String
+  asset_id      String
+  type          YieldType
+  annual_rate   Decimal?  @db.Decimal(24, 12)
+  /// Taxa mensal quando o emissor informa ao mês (ex.: Prex UYU 0.0526).
+  monthly_rate  Decimal?  @db.Decimal(24, 12)
+  provider_name String?
+  active        Boolean   @default(true)
+  started_at    DateTime
+  ended_at      DateTime?
+  metadata      Json?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  account       accounts  @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  asset         assets    @relation(fields: [asset_id], references: [id], onDelete: Restrict)
 
-  @@unique([accountId, assetId, startedAt])
-  @@index([accountId, active])
+  @@unique([account_id, asset_id, started_at])
+  @@index([account_id, active])
 }
 
-model LedgerTransaction {
+model ledger_transactions {
+  id                   String                @id @default(cuid())
+  created_by_user_id   String
+  account_id           String?
+  type                 LedgerTransactionType
+  description          String
+  notes                String?
+  occurred_at          DateTime
+  idempotency_key      String?
+  created_at           DateTime              @default(now())
+  updated_at           DateTime              @updatedAt
+  deleted_at           DateTime?
+  reversed_at          DateTime?
+  reversal_of_id       String?
+  status               TransactionStatus     @default(POSTED)
+  category_id          String?
+  /// Contraparte legível (estabelecimento, pessoa) já limpa.
+  counterparty         String?
+  /// Texto bruto do extrato, para auditoria e reclassificação.
+  original_description String?
+  tags                 String[]              @default([])
+  /// Conversão para a moeda-base no momento do fato (visão auditável; o valor original segue nas entries).
+  base_asset_id        String?
+  base_amount          Decimal?              @db.Decimal(38, 18)
+  base_rate            Decimal?              @db.Decimal(38, 18)
+  /// IOF ou tarifa de câmbio, na moeda-base.
+  fx_fee_base_amount   Decimal?              @db.Decimal(38, 18)
+  import_batch_id      String?
+  /// Id do emissor (FITID do OFX) ou chave de deduplicação da importação.
+  external_id          String?
+  card_statement_id    String?
+  installment_group_id String?
+  installment_number   Int?
+  installment_count    Int?
+  purchase_date        DateTime?
+  created_by           users                 @relation("TransactionCreator", fields: [created_by_user_id], references: [id], onDelete: Restrict)
+  category             categories?           @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  base_asset           assets?               @relation("TransactionBaseAsset", fields: [base_asset_id], references: [id], onDelete: SetNull)
+  import_batch         import_batches?       @relation(fields: [import_batch_id], references: [id], onDelete: SetNull)
+  card_statement       card_statements?      @relation(fields: [card_statement_id], references: [id], onDelete: SetNull)
+  account              accounts?             @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  reversal_of          ledger_transactions?  @relation("TransactionReversal", fields: [reversal_of_id], references: [id], onDelete: Restrict)
+  reversals            ledger_transactions[] @relation("TransactionReversal")
+  entries              ledger_entries[]
+  fx_conversion        fx_conversions?
+
+  @@unique([created_by_user_id, idempotency_key])
+  @@index([created_by_user_id, type, occurred_at])
+  @@index([account_id, occurred_at])
+  @@index([category_id, occurred_at])
+  @@index([account_id, external_id])
+  @@index([card_statement_id])
+  @@index([installment_group_id])
+}
+
+model ledger_entries {
+  id                 String               @id @default(cuid())
+  transaction_id     String
+  account_id         String
+  account_balance_id String
+  asset_id           String
+  direction          LedgerEntryDirection
+  amount             Decimal              @db.Decimal(38, 18)
+  balance_after      Decimal              @db.Decimal(38, 18)
+  created_at         DateTime             @default(now())
+  transaction        ledger_transactions  @relation(fields: [transaction_id], references: [id], onDelete: Restrict)
+  account            accounts             @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  account_balance    account_balances     @relation(fields: [account_balance_id], references: [id], onDelete: Restrict)
+  asset              assets               @relation(fields: [asset_id], references: [id], onDelete: Restrict)
+
+  @@index([account_id, asset_id, created_at])
+  @@index([account_balance_id, created_at])
+  @@index([transaction_id])
+}
+
+model fx_conversions {
+  id                 String              @id @default(cuid())
+  transaction_id     String              @unique
+  from_asset_id      String
+  to_asset_id        String
+  from_amount        Decimal             @db.Decimal(38, 18)
+  to_amount          Decimal             @db.Decimal(38, 18)
+  gross_rate         Decimal             @db.Decimal(38, 18)
+  effective_rate     Decimal             @db.Decimal(38, 18)
+  market_rate        Decimal?            @db.Decimal(38, 18)
+  spread_amount      Decimal?            @db.Decimal(38, 18)
+  spread_percentage  Decimal?            @db.Decimal(24, 12)
+  fixed_fee_amount   Decimal?            @db.Decimal(38, 18)
+  fixed_fee_asset_id String?
+  provider           String?
+  source             ExchangeRateSource
+  provider_timestamp DateTime?
+  quoted_at          DateTime
+  settled_at         DateTime?
+  metadata           Json?
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  transaction        ledger_transactions @relation(fields: [transaction_id], references: [id], onDelete: Restrict)
+  from_asset         assets              @relation("FxFromAsset", fields: [from_asset_id], references: [id], onDelete: Restrict)
+  to_asset           assets              @relation("FxToAsset", fields: [to_asset_id], references: [id], onDelete: Restrict)
+  fixed_fee_asset    assets?             @relation("FxFeeAsset", fields: [fixed_fee_asset_id], references: [id], onDelete: SetNull)
+
+  @@index([from_asset_id, to_asset_id, quoted_at])
+}
+
+model balance_snapshots {
+  id                 String           @id @default(cuid())
+  account_balance_id String
+  balance            Decimal          @db.Decimal(38, 18)
+  snapshot_at        DateTime
+  source             String
+  created_at         DateTime         @default(now())
+  account_balance    account_balances @relation(fields: [account_balance_id], references: [id], onDelete: Restrict)
+
+  @@unique([account_balance_id, snapshot_at])
+  @@index([account_balance_id, snapshot_at])
+}
+
+model exchange_rates {
+  id                 String             @id @default(cuid())
+  from_asset_id      String
+  to_asset_id        String
+  rate               Decimal            @db.Decimal(38, 18)
+  provider           String             @db.VarChar(64)
+  reference_type     String             @db.VarChar(32)
+  source             ExchangeRateSource @default(PROVIDER)
+  provider_timestamp DateTime
+  fetched_at         DateTime           @default(now())
+  indicative         Boolean            @default(true)
+  /// Desativada: fica no histórico, mas não entra na conversão (ex.: cotação manual removida pelo dono).
+  stale              Boolean            @default(false)
+  /// Dono da cotação informada à mão (MANUAL/extratos). Nulo = cotação de provedor (global). Manual sem dono não vale para ninguém.
+  owner_id           String?
+  owner              users?             @relation("RateOwner", fields: [owner_id], references: [id], onDelete: SetNull)
+  from_asset         assets             @relation("RateFromAsset", fields: [from_asset_id], references: [id], onDelete: Restrict)
+  to_asset           assets             @relation("RateToAsset", fields: [to_asset_id], references: [id], onDelete: Restrict)
+
+  @@unique([from_asset_id, to_asset_id, provider_timestamp, provider])
+  @@index([from_asset_id, to_asset_id, fetched_at])
+  @@index([source, stale, from_asset_id, to_asset_id, provider_timestamp])
+}
+
+model waitlist_entries {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  locale          String   @default("pt-BR")
+  consent_version String
+  created_at      DateTime @default(now())
+}
+
+/// Categoria de receita ou despesa do usuário. Transferências, câmbio e investimentos não têm categoria.
+model categories {
+  id           String                 @id @default(cuid())
+  owner_id     String
+  kind         CategoryKind
+  slug         String                 @db.VarChar(64)
+  name         String
+  icon         String?
+  color        String?
+  parent_id    String?
+  archived_at  DateTime?
+  created_at   DateTime               @default(now())
+  updated_at   DateTime               @updatedAt
+  owner        users                  @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  parent       categories?            @relation("CategoryTree", fields: [parent_id], references: [id], onDelete: SetNull)
+  children     categories[]           @relation("CategoryTree")
+  transactions ledger_transactions[]
+  rules        classification_rules[]
+  recurring    recurring_items[]
+
+  @@unique([owner_id, slug])
+  @@index([owner_id, kind])
+}
+
+/// Regra de classificação automática: regex sobre a descrição normalizada. Menor prioridade vence.
+model classification_rules {
+  id               String                @id @default(cuid())
+  owner_id         String
+  priority         Int
+  pattern          String
+  transaction_type LedgerTransactionType
+  /// null = vale para entrada e saída; CREDIT/DEBIT restringe o sentido.
+  direction        LedgerEntryDirection?
+  category_id      String?
+  counterparty     String?
+  tags             String[]              @default([])
+  active           Boolean               @default(true)
+  created_at       DateTime              @default(now())
+  updated_at       DateTime              @updatedAt
+  owner            users                 @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  category         categories?           @relation(fields: [category_id], references: [id], onDelete: SetNull)
+
+  @@index([owner_id, active, priority])
+}
+
+/// Fatura de cartão com o total oficial do emissor. Status (aberta/fechada/paga/atrasada) é derivado.
+model card_statements {
   id              String                @id @default(cuid())
-  createdByUserId String
-  accountId       String?
-  type            LedgerTransactionType
-  description     String
+  account_id      String
+  /// Mês de vencimento, AAAA-MM.
+  reference_month String                @db.VarChar(7)
+  closing_date    DateTime              @db.Date
+  due_date        DateTime              @db.Date
+  total_amount    Decimal?              @db.Decimal(38, 18)
+  asset_id        String
+  source          String                @db.VarChar(32)
   notes           String?
-  occurredAt      DateTime
-  idempotencyKey  String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  deletedAt       DateTime?
-  reversedAt      DateTime?
-  reversalOfId    String?
-  createdBy       User                  @relation("TransactionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  account         Account?              @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  reversalOf      LedgerTransaction?    @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversals       LedgerTransaction[]   @relation("TransactionReversal")
-  entries         LedgerEntry[]
-  fxConversion    FxConversion?
+  created_at      DateTime              @default(now())
+  updated_at      DateTime              @updatedAt
+  account         accounts              @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  asset           assets                @relation(fields: [asset_id], references: [id], onDelete: Restrict)
+  transactions    ledger_transactions[]
 
-  @@unique([createdByUserId, idempotencyKey])
-  @@index([createdByUserId, type, occurredAt])
-  @@index([accountId, occurredAt])
+  @@unique([account_id, reference_month])
+  @@index([account_id, due_date])
 }
 
-model LedgerEntry {
-  id               String               @id @default(cuid())
-  transactionId    String
-  accountId        String
-  accountBalanceId String
-  assetId          String
-  direction        LedgerEntryDirection
-  amount           Decimal              @db.Decimal(38, 18)
-  balanceAfter     Decimal              @db.Decimal(38, 18)
-  createdAt        DateTime             @default(now())
-  transaction      LedgerTransaction    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  account          Account              @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  accountBalance   AccountBalance       @relation(fields: [accountBalanceId], references: [id], onDelete: Restrict)
-  asset            Asset                @relation(fields: [assetId], references: [id], onDelete: Restrict)
+/// Receita ou despesa recorrente (salário, contas da casa, assinaturas). Não gera lançamento sozinha.
+model recurring_items {
+  id            String              @id @default(cuid())
+  owner_id      String
+  account_id    String?
+  category_id   String?
+  asset_id      String
+  kind          CategoryKind
+  description   String
+  amount        Decimal             @db.Decimal(38, 18)
+  frequency     RecurrenceFrequency
+  day_of_month  Int?
+  /// Mês de referência para frequências maiores que mensal.
+  month_of_year Int?
+  variable_day  Boolean             @default(false)
+  active        Boolean             @default(true)
+  notes         String?
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  owner         users               @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  account       accounts?           @relation(fields: [account_id], references: [id], onDelete: SetNull)
+  category      categories?         @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  asset         assets              @relation(fields: [asset_id], references: [id], onDelete: Restrict)
 
-  @@index([accountId, assetId, createdAt])
-  @@index([accountBalanceId, createdAt])
-  @@index([transactionId])
+  @@index([owner_id, active])
 }
 
-model FxConversion {
-  id                String             @id @default(cuid())
-  transactionId     String             @unique
-  fromAssetId       String
-  toAssetId         String
-  fromAmount        Decimal            @db.Decimal(38, 18)
-  toAmount          Decimal            @db.Decimal(38, 18)
-  grossRate         Decimal            @db.Decimal(38, 18)
-  effectiveRate     Decimal            @db.Decimal(38, 18)
-  marketRate        Decimal?           @db.Decimal(38, 18)
-  spreadAmount      Decimal?           @db.Decimal(38, 18)
-  spreadPercentage  Decimal?           @db.Decimal(24, 12)
-  fixedFeeAmount    Decimal?           @db.Decimal(38, 18)
-  fixedFeeAssetId   String?
-  provider          String?
-  source            ExchangeRateSource
-  providerTimestamp DateTime?
-  quotedAt          DateTime
-  settledAt         DateTime?
-  metadata          Json?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  transaction       LedgerTransaction  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  fromAsset         Asset              @relation("FxFromAsset", fields: [fromAssetId], references: [id], onDelete: Restrict)
-  toAsset           Asset              @relation("FxToAsset", fields: [toAssetId], references: [id], onDelete: Restrict)
-  fixedFeeAsset     Asset?             @relation("FxFeeAsset", fields: [fixedFeeAssetId], references: [id], onDelete: SetNull)
+/// Bem ou investimento fora das contas (imóvel, veículo, CDB, ações, cripto em custódia própria).
+model holdings {
+  id               String             @id @default(cuid())
+  owner_id         String
+  name             String
+  class            HoldingClass
+  asset_id         String
+  value            Decimal            @db.Decimal(38, 18)
+  quantity         Decimal?           @db.Decimal(38, 18)
+  ticker           String?            @db.VarChar(32)
+  country_code     String?            @db.VarChar(2)
+  holder_name      String?
+  /// Titular: membro de um grupo familiar do dono. Substitui `holder_name` quando preenchido.
+  holder_member_id String?
+  valued_at        DateTime
+  notes            String?
+  archived_at      DateTime?
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+  owner            users              @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  asset            assets             @relation(fields: [asset_id], references: [id], onDelete: Restrict)
+  holder_member    household_members? @relation("HoldingHolder", fields: [holder_member_id], references: [id], onDelete: SetNull)
 
-  @@index([fromAssetId, toAssetId, quotedAt])
+  @@index([owner_id, class])
+  @@index([holder_member_id])
 }
 
-model BalanceSnapshot {
-  id               String         @id @default(cuid())
-  accountBalanceId String
-  balance          Decimal        @db.Decimal(38, 18)
-  snapshotAt       DateTime
-  source           String
-  createdAt        DateTime       @default(now())
-  accountBalance   AccountBalance @relation(fields: [accountBalanceId], references: [id], onDelete: Restrict)
+/// Viagem: agrupa lançamentos pela tag (ex.: "chile-2026").
+model trips {
+  id            String    @id @default(cuid())
+  owner_id      String
+  name          String
+  tag           String    @db.VarChar(64)
+  starts_on     DateTime? @db.Date
+  ends_on       DateTime? @db.Date
+  country_codes String[]  @default([])
+  notes         String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  owner         users     @relation(fields: [owner_id], references: [id], onDelete: Restrict)
 
-  @@unique([accountBalanceId, snapshotAt])
-  @@index([accountBalanceId, snapshotAt])
+  @@unique([owner_id, tag])
 }
 
-model ExchangeRate {
-  id                String             @id @default(cuid())
-  fromAssetId       String
-  toAssetId         String
-  rate              Decimal            @db.Decimal(38, 18)
-  provider          String             @db.VarChar(64)
-  referenceType     String             @db.VarChar(32)
-  source            ExchangeRateSource @default(PROVIDER)
-  providerTimestamp DateTime
-  fetchedAt         DateTime           @default(now())
-  indicative        Boolean            @default(true)
-  stale             Boolean            @default(false)
-  fromAsset         Asset              @relation("RateFromAsset", fields: [fromAssetId], references: [id], onDelete: Restrict)
-  toAsset           Asset              @relation("RateToAsset", fields: [toAssetId], references: [id], onDelete: Restrict)
+/// Lote de importação de extrato/fatura, para auditoria e desfazer.
+model import_batches {
+  id             String                @id @default(cuid())
+  owner_id       String
+  account_id     String
+  file_name      String
+  format         ImportFormat
+  row_count      Int
+  imported_count Int
+  created_at     DateTime              @default(now())
+  owner          users                 @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  account        accounts              @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  transactions   ledger_transactions[]
 
-  @@unique([fromAssetId, toAssetId, providerTimestamp, provider])
-  @@index([fromAssetId, toAssetId, fetchedAt])
+  @@index([owner_id, created_at])
 }
 
-model WaitlistEntry {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  locale         String   @default("pt-BR")
-  consentVersion String
-  createdAt      DateTime @default(now())
+/// Grupo familiar: reúne membros (com ou sem login) e as contas vinculadas a ele.
+model households {
+  id                 String                  @id @default(cuid())
+  name               String
+  created_by_user_id String
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
+  archived_at        DateTime?
+  created_by         users                   @relation("HouseholdCreator", fields: [created_by_user_id], references: [id], onDelete: Restrict)
+  members            household_members[]
+  invitations        household_invitations[]
+  accounts           accounts[]
+  active_users       users[]                 @relation("UserActiveHousehold")
+
+  @@index([created_by_user_id])
+}
+
+/// Membro do grupo. `user_id` nulo = titular sem login (cônjuge, filho), só para identificar de quem é a conta.
+model household_members {
+  id           String        @id @default(cuid())
+  household_id String
+  user_id      String?
+  display_name String?
+  role         HouseholdRole @default(MEMBER)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  household    households    @relation(fields: [household_id], references: [id], onDelete: Cascade)
+  user         users?        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  accounts     accounts[]    @relation("AccountHolder")
+  holdings     holdings[]    @relation("HoldingHolder")
+
+  @@unique([household_id, user_id])
+  @@index([user_id, household_id])
+}
+
+/// Convite por e-mail. O token em claro só existe na resposta da criação; aqui fica o hash.
+model household_invitations {
+  id                 String           @id @default(cuid())
+  household_id       String
+  invited_by_user_id String
+  email              String
+  role               HouseholdRole    @default(MEMBER)
+  status             InvitationStatus @default(PENDING)
+  token_hash         String           @unique
+  expires_at         DateTime
+  accepted_at        DateTime?
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  household          households       @relation(fields: [household_id], references: [id], onDelete: Cascade)
+  invited_by         users            @relation("HouseholdInvitationSender", fields: [invited_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([email, status])
+  @@index([household_id, status])
+}
+
+/// Pedido de privacidade (LGPD/GDPR): exportação ou exclusão. Trilha de auditoria sem dados pessoais:
+/// só tipo, estado e datas. A exclusão é lógica (anonimiza o usuário e arquiva); o ledger permanece.
+model privacy_requests {
+  id            String               @id @default(cuid())
+  user_id       String
+  type          PrivacyRequestType
+  status        PrivacyRequestStatus @default(PENDING)
+  requested_at  DateTime             @default(now())
+  /// Exclusão: fim da carência; a partir daí o job pode processar.
+  scheduled_for DateTime?
+  processed_at  DateTime?
+  canceled_at   DateTime?
+  user          users                @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id, type, status])
+  @@index([type, status, scheduled_for])
+}
+
+/// Assinatura do usuário. Teste de 14 dias do PREMIUM, sem cartão, criado no primeiro acesso (`trial_ends_at`).
+/// Pago via Stripe: o webhook atualiza plano, ciclo, status e fim do período. Sem plano ativo = somente leitura.
+model subscriptions {
+  id                     String             @id @default(cuid())
+  user_id                String             @unique
+  plan                   PlanCode           @default(PREMIUM)
+  status                 SubscriptionStatus @default(TRIALING)
+  interval               BillingInterval?
+  trial_ends_at          DateTime?
+  current_period_end     DateTime?
+  cancel_at_period_end   Boolean            @default(false)
+  stripe_customer_id     String?            @unique
+  stripe_subscription_id String?            @unique
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  user                   users              @relation(fields: [user_id], references: [id], onDelete: Restrict)
+}
+
+/// Eventos do Stripe já processados (idempotência do webhook). Sem payload: nada de dados pessoais.
+model billing_events {
+  id              String   @id @default(cuid())
+  stripe_event_id String   @unique
+  type            String   @db.VarChar(80)
+  processed_at    DateTime @default(now())
+}
+
+/// Aceite de termos e política de privacidade (prova de consentimento, só acréscimo). Uma linha por tipo e versão;
+/// publicar uma versão nova pede novo aceite. Sem IP nem dados do dispositivo.
+model consents {
+  id          String      @id @default(cuid())
+  user_id     String
+  kind        ConsentKind
+  version     String      @db.VarChar(32)
+  /// Idioma em que o texto foi apresentado.
+  locale      String      @db.VarChar(8)
+  accepted_at DateTime    @default(now())
+  user        users       @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@unique([user_id, kind, version])
+  @@index([user_id, kind])
 }

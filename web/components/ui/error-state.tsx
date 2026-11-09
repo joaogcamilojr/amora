@@ -1,10 +1,14 @@
+"use client";
+
 import { ReactNode } from "react";
+
+import { useI18n } from "@/lib/i18n/client";
 
 import { Icon } from "./icon";
 
 export function ErrorState({
-  title = "Não foi possível carregar",
-  description = "Tente novamente em instantes.",
+  title,
+  description,
   retry,
   action,
   compact = false,
@@ -15,17 +19,18 @@ export function ErrorState({
   action?: ReactNode;
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div className={`error-state ${compact ? "compact" : ""}`} role="alert">
       <span className="state-icon danger">
         <Icon name="error" />
       </span>
-      <h2>{title}</h2>
-      <p>{description}</p>
+      <h2>{title ?? t("ui.errorState.title")}</h2>
+      <p>{description ?? t("ui.errorState.description")}</p>
       <div className="state-actions">
         {retry && (
           <button className="button button-small" onClick={retry}>
-            <Icon name="refresh" size={16} /> Tentar novamente
+            <Icon name="refresh" size={16} /> {t("common.actions.retry")}
           </button>
         )}
         {action}

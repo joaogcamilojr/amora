@@ -1,9 +1,16 @@
 import { NextRequest } from "next/server";
 
 import { accountDetailsForForm } from "@/lib/account-service";
+import { accountAccessWhere } from "@/lib/auth/access";
 import { getAccountTypeConfiguration } from "@/lib/accounts/account-types";
 import { getSession } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { accountHouseholdData } from "@/lib/finance/households";
+import {
+  caughtError,
+  localizedError,
+  unauthorizedResponse,
+} from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import {
   cardInput,
@@ -17,10 +24,9 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, context: Context) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await context.params;
-  const access = await accountDetailsForForm(session.userId, id);
+  const access = await accountDetailsForForm(session.user_id, id);
   return access
     ? jsonData({
         ...publicAccount(access.account),
@@ -31,27 +37,37 @@ export async function GET(_request: NextRequest, context: Context) {
             access.account.status === "ACTIVE",
         },
       })
-    : jsonError(404, "RESOURCE_NOT_FOUND", "Account not found.");
+    : localizedError(
+        session.user_id,
+        404,
+        "RESOURCE_NOT_FOUND",
+        "errors.accounts.notFound",
+      );
 }
 
 export async function PATCH(request: NextRequest, context: Context) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await context.params;
-  const access = await accountDetailsForForm(session.userId, id);
+  const access = await accountDetailsForForm(session.user_id, id);
   if (!access || access.role !== AccountMemberRole.OWNER)
-    return jsonError(403, "FORBIDDEN", "Only the owner can edit the account.");
+    return localizedError(
+      session.user_id,
+      403,
+      "FORBIDDEN",
+      "errors.accounts.onlyOwnerCanEdit",
+    );
   try {
     if (access.account.status !== "ACTIVE")
-      return jsonError(
+      return localizedError(
+        session.user_id,
         409,
         "ACCOUNT_ARCHIVED",
-        "Conta arquivada não pode ser editada.",
+        "errors.accounts.archivedNotEditable",
       );
     const body = (await request.json()) as Record<string, unknown>;
     const input = parseUpdateAccountInput(body, access.account.type);
-    const assets = await prisma.asset.findMany({
+    const assets = await prisma.assets.findMany({
       where: { active: true },
       select: { id: true, type: true },
     });
@@ -61,52 +77,72 @@ export async function PATCH(request: NextRequest, context: Context) {
       assets,
       false,
     );
-    const account = await prisma.account.update({
+    if (card?.payment_account_id) {
+      const payer = await prisma.accounts.findFirst({
+        where: {
+          id: card.payment_account_id,
+          ...accountAccessWhere(session.user_id),
+        },
+        select: { id: true },
+      });
+      if (!payer || payer.id === id)
+        throw new ValidationError(
+          "INVALID_CARD_PROFILE",
+          "errors.card.invalidPaymentAccount",
+        );
+    }
+    const household = await accountHouseholdData(
+      session.user_id,
+      body,
+      access.account,
+    );
+    const account = await prisma.accounts.update({
       where: { id },
       data: {
         ...input,
-        cardProfile:
+        ...household,
+        card_profile:
           card === undefined
             ? undefined
             : card
               ? { upsert: { create: card, update: card } }
               : { delete: true },
       },
-      include: { balances: { include: { asset: true } }, cardProfile: true },
+      include: { balances: { include: { asset: true } }, card_profile: true },
     });
     return jsonData(publicAccount(account));
   } catch (error) {
     const code =
       error instanceof ValidationError ? error.code : "VALIDATION_ERROR";
-    return jsonError(
+    return caughtError(
+      session.user_id,
       code === "CONFLICT" ? 409 : 400,
       code,
-      error instanceof Error ? error.message : "Invalid account",
+      error,
+      "errors.codes.VALIDATION_ERROR",
     );
   }
 }
 
 export async function DELETE(_request: NextRequest, context: Context) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await context.params;
   try {
     const { deleteEmptyAccount } = await import("@/lib/account-service");
-    await deleteEmptyAccount(session.userId, id);
+    await deleteEmptyAccount(session.user_id, id);
     return jsonData({ deleted: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Delete failed";
-    return jsonError(
+    const message = error instanceof Error ? error.message : "VALIDATION_ERROR";
+    return caughtError(
+      session.user_id,
       message === "ACCOUNT_NOT_EMPTY"
         ? 409
         : message === "FORBIDDEN"
           ? 403
           : 400,
       message,
-      message === "ACCOUNT_NOT_EMPTY"
-        ? "Archive the account instead; financial history is retained."
-        : message,
+      error,
     );
   }
 }

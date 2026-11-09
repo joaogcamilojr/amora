@@ -5,40 +5,53 @@ import {
   hashToken,
   setAuthCookies,
 } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { caughtError, localizedError } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { emailValue, stringValue } from "@/lib/validation";
+import { emailValue, stringValue, ValidationError } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const email = emailValue(body.email);
     const code = stringValue(body.code, "code", 6);
-    if (!/^\d{6}$/.test(code)) throw new Error("code is invalid");
-    const user = await prisma.user.findUnique({ where: { email } });
+    if (!/^\d{6}$/.test(code))
+      throw new ValidationError("VALIDATION_ERROR", "errors.invalidField", {
+        field: "code",
+      });
+    const user = await prisma.users.findUnique({ where: { email } });
     const loginCode = user
-      ? await prisma.loginCode.findFirst({
-          where: { userId: user.id, usedAt: null },
-          orderBy: { createdAt: "desc" },
+      ? await prisma.login_codes.findFirst({
+          where: { user_id: user.id, used_at: null },
+          orderBy: { created_at: "desc" },
         })
       : null;
     if (
       !user ||
-      !user.emailVerifiedAt ||
+      !user.email_verified_at ||
       !loginCode ||
-      loginCode.expiresAt <= new Date() ||
-      loginCode.codeHash !== hashToken(code)
+      loginCode.expires_at <= new Date() ||
+      loginCode.code_hash !== hashToken(code)
     )
-      return jsonError(401, "INVALID_CODE", "Código inválido ou expirado.");
-    await prisma.loginCode.update({
+      return localizedError(
+        null,
+        401,
+        "INVALID_CODE",
+        "errors.auth.invalidCode",
+      );
+    await prisma.login_codes.update({
       where: { id: loginCode.id },
-      data: { usedAt: new Date() },
+      data: { used_at: new Date() },
     });
     const tokens = await createAuthTokens(user.id);
     await setAuthCookies(tokens);
     return jsonData(
       {
-        user: { id: user.id, email: user.email, displayName: user.displayName },
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.display_name,
+        },
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresAt: tokens.accessExpiresAt,
@@ -46,10 +59,12 @@ export async function POST(request: NextRequest) {
       200,
     );
   } catch (error) {
-    return jsonError(
+    return caughtError(
+      null,
       400,
       "LOGIN_ERROR",
-      error instanceof Error ? error.message : "Invalid request",
+      error,
+      "errors.invalidRequest",
     );
   }
 }

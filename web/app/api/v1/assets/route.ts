@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   await getSession();
   return jsonData(
-    await prisma.asset.findMany({
+    await prisma.assets.findMany({
       where: { active: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),

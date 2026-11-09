@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 
+import { accountAccessWhere } from "@/lib/auth/access";
 import { getSession } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { localizedError, unauthorizedResponse } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -9,26 +11,24 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await params;
-  const member = await prisma.accountMember.findFirst({
-    where: { accountId: id, userId: session.userId },
+  const accessible = await prisma.accounts.findFirst({
+    where: { id, ...accountAccessWhere(session.user_id) },
+    select: { id: true },
   });
-  const owner = await prisma.account.findFirst({
-    where: { id, ownerId: session.userId },
-  });
-  if (!member && !owner)
-    return jsonError(
+  if (!accessible)
+    return localizedError(
+      session.user_id,
       403,
       "FORBIDDEN",
-      "You do not have access to this account.",
+      "errors.accounts.noAccess",
     );
   return jsonData(
-    await prisma.accountMember.findMany({
-      where: { accountId: id },
+    await prisma.account_members.findMany({
+      where: { account_id: id },
       include: {
-        user: { select: { id: true, email: true, displayName: true } },
+        user: { select: { id: true, email: true, display_name: true } },
       },
     }),
   );

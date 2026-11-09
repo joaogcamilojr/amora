@@ -1,5 +1,6 @@
 "use client";
 
+import type { AccountType } from "@prisma/client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -10,7 +11,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast-provider";
-import { getAccountTypeConfiguration } from "@/lib/accounts/account-types";
+import { useI18n } from "@/lib/i18n/client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export default function AccountDetail({
@@ -26,6 +27,7 @@ export default function AccountDetail({
   >(null);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
+  const { t } = useI18n();
   async function load(nextId: string) {
     try {
       const response = await fetch(`/api/v1/accounts/${nextId}`);
@@ -54,13 +56,13 @@ export default function AccountDetail({
       setConfirm(null);
       toast({
         variant: "error",
-        title: "Ação não concluída",
-        description: "Verifique a permissão e o estado da conta.",
+        title: t("accounts.detail.toast.failedTitle"),
+        description: t("accounts.detail.toast.failedDescription"),
       });
       return;
     }
     if (confirm === "delete") {
-      toast({ variant: "success", title: "Conta excluída" });
+      toast({ variant: "success", title: t("accounts.detail.toast.deleted") });
       window.location.href = "/accounts";
       return;
     }
@@ -70,7 +72,11 @@ export default function AccountDetail({
     });
     toast({
       variant: "success",
-      title: confirm === "archive" ? "Conta arquivada" : "Conta restaurada",
+      title: t(
+        confirm === "archive"
+          ? "accounts.detail.toast.archived"
+          : "accounts.detail.toast.restored",
+      ),
     });
     setConfirm(null);
   }
@@ -78,12 +84,12 @@ export default function AccountDetail({
     return (
       <PageContainer>
         <ErrorState
-          title="Conta indisponível"
-          description="A conta não existe ou não está disponível para você."
+          title={t("accounts.detail.unavailableTitle")}
+          description={t("accounts.detail.unavailableDescription")}
           retry={() => load(id)}
           action={
             <Link className="button button-small secondary" href="/accounts">
-              Voltar para contas
+              {t("accounts.detail.backToAccounts")}
             </Link>
           }
         />
@@ -92,25 +98,29 @@ export default function AccountDetail({
   if (!account)
     return (
       <PageContainer>
-        <LoadingState label="Carregando conta" />
+        <LoadingState label={t("accounts.detail.loading")} />
       </PageContainer>
     );
-  const typeLabel = getAccountTypeConfiguration(account.type).label;
+  const typeLabel = t(`enums.accountType.${account.type as AccountType}.label`);
   return (
     <PageContainer size="form">
       <PageHeader
         back={
           <Link className="back-link" href="/accounts">
-            ← Contas
+            {t("accounts.detail.back")}
           </Link>
         }
-        eyebrow={account.status === "ARCHIVED" ? "Arquivada" : typeLabel}
+        eyebrow={
+          account.status === "ARCHIVED"
+            ? t("accounts.detail.archivedEyebrow")
+            : typeLabel
+        }
         title={account.name}
         description={account.institutionName || typeLabel}
         actions={
           <>
             <Link className="button button-small" href={`/accounts/${id}/edit`}>
-              Editar
+              {t("common.actions.edit")}
             </Link>
             <button
               className="button button-small secondary"
@@ -118,13 +128,15 @@ export default function AccountDetail({
                 setConfirm(account.status === "ACTIVE" ? "archive" : "restore")
               }
             >
-              {account.status === "ACTIVE" ? "Arquivar" : "Restaurar"}
+              {account.status === "ACTIVE"
+                ? t("common.actions.archive")
+                : t("accounts.detail.restore")}
             </button>
           </>
         }
       />
       <section className="balance-detail">
-        <h2>Saldos por ativo</h2>
+        <h2>{t("accounts.detail.balancesTitle")}</h2>
         {account.balances.length ? (
           account.balances.map((balance: any) => (
             <div className="balance-row" key={balance.id}>
@@ -138,35 +150,37 @@ export default function AccountDetail({
             </div>
           ))
         ) : (
-          <p>Saldo zero. Nenhum lançamento artificial foi criado.</p>
+          <p>{t("accounts.detail.zeroBalance")}</p>
         )}
       </section>
       <SharePanel accountId={id} />
       <section className="danger-zone">
-        <h2>Exclusão</h2>
-        <p>Contas com histórico só podem ser arquivadas.</p>
+        <h2>{t("accounts.detail.deletionTitle")}</h2>
+        <p>{t("accounts.detail.deletionHelp")}</p>
         <button className="text-danger" onClick={() => setConfirm("delete")}>
-          Excluir se estiver vazia
+          {t("accounts.detail.deleteIfEmpty")}
         </button>
       </section>
       <ConfirmDialog
         open={confirm !== null}
         title={
           confirm === "delete"
-            ? "Excluir conta?"
-            : `${confirm === "archive" ? "Arquivar" : "Restaurar"} conta?`
+            ? t("accounts.detail.confirm.deleteTitle")
+            : confirm === "archive"
+              ? t("accounts.detail.confirm.archiveTitle")
+              : t("accounts.detail.confirm.restoreTitle")
         }
         description={
           confirm === "delete"
-            ? "Esta ação só funciona para contas sem histórico."
-            : "Você poderá revisar o estado da conta depois."
+            ? t("accounts.detail.confirm.deleteDescription")
+            : t("accounts.detail.confirm.otherDescription")
         }
         confirmLabel={
           confirm === "delete"
-            ? "Excluir"
+            ? t("common.actions.delete")
             : confirm === "archive"
-              ? "Arquivar"
-              : "Restaurar"
+              ? t("common.actions.archive")
+              : t("accounts.detail.restore")
         }
         destructive={confirm === "delete" || confirm === "archive"}
         busy={busy}

@@ -2,7 +2,8 @@ import { AccountStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
-import { jsonData, jsonError } from "@/lib/http";
+import { localizedError, unauthorizedResponse } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -10,22 +11,22 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
-  if (!session)
-    return jsonError(401, "UNAUTHORIZED", "Authentication required.");
+  if (!session) return unauthorizedResponse();
   const { id } = await params;
-  const account = await prisma.account.findFirst({
-    where: { id, ownerId: session.userId, status: AccountStatus.ARCHIVED },
+  const account = await prisma.accounts.findFirst({
+    where: { id, owner_id: session.user_id, status: AccountStatus.ARCHIVED },
   });
   if (!account)
-    return jsonError(
+    return localizedError(
+      session.user_id,
       403,
       "FORBIDDEN",
-      "Only the owner can restore the account.",
+      "errors.accounts.onlyOwnerCanRestore",
     );
   return jsonData(
-    await prisma.account.update({
+    await prisma.accounts.update({
       where: { id },
-      data: { status: AccountStatus.ACTIVE, archivedAt: null },
+      data: { status: AccountStatus.ACTIVE, archived_at: null },
     }),
   );
 }

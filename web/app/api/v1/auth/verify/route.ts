@@ -12,22 +12,22 @@ export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token)
     return NextResponse.redirect(`${APP_URL}/login?error=invalid_verification`);
-  const verification = await prisma.emailVerificationToken.findUnique({
-    where: { tokenHash: hashToken(token) },
+  const verification = await prisma.email_verification_tokens.findUnique({
+    where: { token_hash: hashToken(token) },
   });
   if (
     !verification ||
-    verification.usedAt ||
-    verification.expiresAt <= new Date()
+    verification.used_at ||
+    verification.expires_at <= new Date()
   )
     return NextResponse.redirect(`${APP_URL}/login?error=expired_verification`);
-  const user = await prisma.user.update({
-    where: { id: verification.userId },
-    data: { emailVerifiedAt: new Date() },
+  const user = await prisma.users.update({
+    where: { id: verification.user_id },
+    data: { email_verified_at: new Date() },
   });
-  await prisma.emailVerificationToken.update({
+  await prisma.email_verification_tokens.update({
     where: { id: verification.id },
-    data: { usedAt: new Date() },
+    data: { used_at: new Date() },
   });
   const tokens = await createAuthTokens(user.id);
   await setAuthCookies(tokens);

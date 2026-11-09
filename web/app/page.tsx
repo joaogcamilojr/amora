@@ -1,6 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
+import { AcceptLinks } from "@/components/legal/accept-links";
+import type { Locale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/client";
 
 const currencies = [
   { code: "USD", amount: 4250, rate: 5.42, flag: "US" },
@@ -17,28 +23,26 @@ const rates: Record<string, number> = {
   BTC: 628412,
 };
 
+/** Moeda-base inicial da demonstração (valores ilustrativos), conforme o idioma do visitante. */
+const DEMO_BASE: Record<Locale, string> = {
+  "pt-BR": "BRL",
+  en: "USD",
+  es: "USD",
+};
+
 const features = [
-  [
-    "01",
-    "Tudo no seu idioma financeiro",
-    "Veja cada compra na moeda original e o impacto real na sua moeda-base. Sem planilhas paralelas.",
-  ],
-  [
-    "02",
-    "Viagens sem sustos",
-    "Crie uma viagem, defina o orçamento e acompanhe quanto ainda pode gastar por dia e por categoria.",
-  ],
-  [
-    "03",
-    "Bitcoin faz parte do patrimônio",
-    "Acompanhe BTC junto de contas e moedas tradicionais, com posição e variação claramente separadas.",
-  ],
-  [
-    "04",
-    "Uma visão para cada país",
-    "Dólar, euro, real, peso uruguaio e chileno reunidos em uma carteira global.",
-  ],
-];
+  ["01", "language"],
+  ["02", "trips"],
+  ["03", "bitcoin"],
+  ["04", "countries"],
+] as const;
+
+const faqItems = ["bankAccount", "noBank", "bitcoin", "currencies"] as const;
+const securityItems = [
+  ["01", "control"],
+  ["02", "privacy"],
+  ["03", "custody"],
+] as const;
 
 function Mark({ inverse = false }: { inverse?: boolean }) {
   return (
@@ -53,19 +57,15 @@ function Mark({ inverse = false }: { inverse?: boolean }) {
     </span>
   );
 }
-function fmt(value: number, code: string) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: code,
-    maximumFractionDigits: code === "BTC" ? 6 : 2,
-  }).format(value);
-}
-
 export default function Home() {
-  const [base, setBase] = useState("BRL");
-  const [from, setFrom] = useState("USD");
+  const { t, fmt, locale } = useI18n();
+  const money = (value: number, code: string) =>
+    fmt.money(value, code, code === "BTC" ? 6 : undefined);
+  const [base, setBase] = useState(DEMO_BASE[locale]);
+  const [from, setFrom] = useState(DEMO_BASE[locale] === "USD" ? "EUR" : "USD");
   const [amount, setAmount] = useState(1000);
   const [openFaq, setOpenFaq] = useState(0);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const converted = useMemo(
     () => (amount * rates[from]) / rates[base],
     [amount, from, base],
@@ -75,21 +75,21 @@ export default function Home() {
       <nav className="nav shell">
         <a className="brand" href="#top">
           <Mark />
-          <span>Cash Flow</span>
-          <b>Global</b>
+          <span>Amora</span>
         </a>
         <div className="navlinks">
-          <a href="#produto">Produto</a>
-          <a href="#viajantes">Para viajantes</a>
-          <a href="#cotacoes">Cotações</a>
-          <a href="#seguranca">Segurança</a>
+          <a href="#produto">{t("landing.nav.product")}</a>
+          <a href="#viajantes">{t("landing.nav.travelers")}</a>
+          <a href="#cotacoes">{t("landing.nav.rates")}</a>
+          <a href="#seguranca">{t("landing.nav.security")}</a>
         </div>
         <div className="nav-actions">
+          <LocaleSwitcher className="text-button" />
           <a className="text-button" href="/login">
-            Entrar
+            {t("landing.nav.signIn")}
           </a>
           <a className="button button-small" href="#acesso">
-            Quero acesso antecipado
+            {t("landing.nav.earlyAccess")}
           </a>
         </div>
       </nav>
@@ -98,53 +98,55 @@ export default function Home() {
         <div className="shell hero-grid">
           <div className="hero-copy">
             <div className="eyebrow">
-              <span /> Finanças para quem vive entre moedas
+              <span /> {t("landing.hero.eyebrow")}
             </div>
             <h1>
-              Seu dinheiro não
+              {t("landing.hero.titleLine1")}
               <br />
-              tem <em>fronteiras.</em>
+              {t("landing.hero.titleLine2")}{" "}
+              <em>{t("landing.hero.titleEmphasis")}</em>
               <br />
-              Seu controle também não.
+              {t("landing.hero.titleLine3")}
             </h1>
-            <p>
-              Organize contas, viagens e patrimônio em múltiplas moedas — do
-              real ao dólar, do peso ao Bitcoin — em uma única visão simples.
-            </p>
+            <p>{t("landing.hero.lead")}</p>
             <div className="hero-actions">
               <a className="button" href="#acesso">
-                Entrar na lista de espera <span>→</span>
+                {t("landing.hero.joinWaitlist")} <span>→</span>
               </a>
               <a className="watch" href="#produto">
-                <i>▶</i> Ver como funciona
+                <i>▶</i> {t("landing.hero.howItWorks")}
               </a>
             </div>
-            <small>Sem cartão de crédito · Acesso antecipado gratuito</small>
+            <small>{t("landing.hero.note")}</small>
           </div>
-          <div
-            className="product-scene"
-            aria-label="Prévia do painel financeiro"
-          >
+          <div className="product-scene" aria-label={t("landing.scene.label")}>
             <div className="orbit orbit-one" />
             <div className="orbit orbit-two" />
             <div className="float-card fx-card">
-              <span>Cotação agora</span>
-              <strong>USD 1 = R$ 5,42</strong>
-              <small>+0,38% hoje</small>
+              <span>{t("landing.scene.fxNow")}</span>
+              <strong>
+                {t("landing.scene.fxPair", { value: money(5.42, "BRL") })}
+              </strong>
+              <small>
+                {t("landing.scene.today", {
+                  value: `+${fmt.percent(0.0038, 2)}`,
+                })}
+              </small>
             </div>
             <div className="app-card">
               <div className="app-top">
                 <div className="app-brand">
                   <Mark />
-                  <span>Cash Flow</span>
-                  <b>Global</b>
+                  <span>Amora</span>
                 </div>
-                <div className="avatar">JC</div>
+                <div className="avatar">AM</div>
               </div>
               <div className="balance">
-                <span>Patrimônio global</span>
-                <strong>{fmt(38742.8, base)}</strong>
-                <small>↗ 2,8% este mês</small>
+                <span>{t("landing.scene.netWorth")}</span>
+                <strong>{money(38742.8, base)}</strong>
+                <small>
+                  {t("landing.scene.thisMonth", { value: fmt.percent(0.028) })}
+                </small>
               </div>
               <div className="chart">
                 <div className="chart-grid" />
@@ -169,8 +171,8 @@ export default function Home() {
                 </svg>
               </div>
               <div className="wallet-head">
-                <b>Minhas moedas</b>
-                <span>Ver todas</span>
+                <b>{t("landing.scene.myCurrencies")}</b>
+                <span>{t("landing.scene.seeAll")}</span>
               </div>
               <div className="wallets">
                 {currencies.map((c) => (
@@ -178,9 +180,11 @@ export default function Home() {
                     <span className="flag">{c.flag}</span>
                     <div>
                       <b>{c.code}</b>
-                      <small>{fmt(c.amount, c.code)}</small>
+                      <small>{money(c.amount, c.code)}</small>
                     </div>
-                    <strong>{fmt(c.amount * c.rate, base)}</strong>
+                    <strong>
+                      {money((c.amount * c.rate) / rates[base], base)}
+                    </strong>
                   </div>
                 ))}
               </div>
@@ -188,8 +192,16 @@ export default function Home() {
             <div className="float-card trip-card">
               <span className="trip-icon">✦</span>
               <div>
-                <small>Viagem · Montevidéu</small>
-                <strong>72% do orçamento</strong>
+                <small>
+                  {t("landing.scene.trip", {
+                    place: t("landing.scene.tripPlace"),
+                  })}
+                </small>
+                <strong>
+                  {t("landing.scene.budgetUsed", {
+                    value: fmt.percent(0.72, 0),
+                  })}
+                </strong>
                 <span>
                   <i style={{ width: "72%" }} />
                 </span>
@@ -199,60 +211,59 @@ export default function Home() {
         </div>
         <div className="ticker">
           <span>
-            USD / BRL <b>5,42</b> <i>▲ 0,38%</i>
+            USD / BRL <b>{fmt.number(5.42)}</b>{" "}
+            <i>▲ {fmt.percent(0.0038, 2)}</i>
           </span>
           <span>
-            EUR / BRL <b>6,31</b> <i>▲ 0,22%</i>
+            EUR / BRL <b>{fmt.number(6.31)}</b>{" "}
+            <i>▲ {fmt.percent(0.0022, 2)}</i>
           </span>
           <span>
-            BTC / USD <b>115.950</b> <i>▲ 2,84%</i>
+            BTC / USD <b>{fmt.number(115950)}</b>{" "}
+            <i>▲ {fmt.percent(0.0284, 2)}</i>
           </span>
           <span>
-            UYU / BRL <b>0,134</b> <em>▼ 0,11%</em>
+            UYU / BRL <b>{fmt.number(0.134, 3)}</b>{" "}
+            <em>▼ {fmt.percent(0.0011, 2)}</em>
           </span>
           <span>
-            CLP / BRL <b>0,0057</b> <i>▲ 0,07%</i>
+            CLP / BRL <b>{fmt.number(0.0057, 4)}</b>{" "}
+            <i>▲ {fmt.percent(0.0007, 2)}</i>
           </span>
         </div>
       </section>
 
       <section className="problem shell" id="produto">
-        <div className="section-kicker">O problema</div>
+        <div className="section-kicker">{t("landing.problem.kicker")}</div>
         <h2>
-          Você viaja pelo mundo.
+          {t("landing.problem.titleLine1")}
           <br />
-          Suas finanças ficam para trás.
+          {t("landing.problem.titleLine2")}
         </h2>
-        <p className="section-lead">
-          Aplicativos tradicionais entendem uma conta, uma moeda, um país. Sua
-          vida já não funciona assim.
-        </p>
+        <p className="section-lead">{t("landing.problem.lead")}</p>
         <div className="problem-grid">
           <div className="mess">
             <div className="receipt r1">
-              Cartão internacional <b>USD 284,90</b>
-              <small>Qual foi a cotação mesmo?</small>
+              {t("landing.problem.receiptCard")} <b>{money(284.9, "USD")}</b>
+              <small>{t("landing.problem.receiptCardNote")}</small>
             </div>
             <div className="receipt r2">
-              Planilha viagem.xlsx <b>#REF!</b>
-              <small>última edição há 12 dias</small>
+              {t("landing.problem.receiptSheet")} <b>#REF!</b>
+              <small>{t("landing.problem.receiptSheetNote")}</small>
             </div>
             <div className="receipt r3">
-              Exchange <b>0,036 BTC</b>
-              <small>fora do seu patrimônio</small>
+              {t("landing.problem.receiptExchange")}{" "}
+              <b>{fmt.number(0.036, 3)} BTC</b>
+              <small>{t("landing.problem.receiptExchangeNote")}</small>
             </div>
           </div>
           <div className="solution">
             <div className="solution-logo">
               <Mark inverse />
-              <span>Cash Flow</span>
-              <b>Global</b>
+              <span>Amora</span>
             </div>
-            <h3>Uma visão. Todas as moedas.</h3>
-            <p>
-              O Cash Flow Global converte, organiza e contextualiza seu dinheiro
-              sem esconder a moeda original.
-            </p>
+            <h3>{t("landing.problem.solutionTitle")}</h3>
+            <p>{t("landing.problem.solutionText")}</p>
             <div className="chips">
               <span>USD</span>
               <span>EUR</span>
@@ -260,7 +271,7 @@ export default function Home() {
               <span>UYU</span>
               <span>CLP</span>
               <span>₿ BTC</span>
-              <span>+ 160</span>
+              <span>+ {fmt.number(160)}</span>
             </div>
           </div>
         </div>
@@ -268,29 +279,33 @@ export default function Home() {
 
       <section className="features" id="viajantes">
         <div className="shell">
-          <div className="section-kicker light">Feito para uma vida global</div>
+          <div className="section-kicker light">
+            {t("landing.features.kicker")}
+          </div>
           <h2>
-            Controle financeiro que
+            {t("landing.features.titleLine1")}
             <br />
-            fala a língua da sua jornada.
+            {t("landing.features.titleLine2")}
           </h2>
           <div className="feature-list">
-            {features.map((f, i) => (
-              <article key={f[0]}>
-                <span>{f[0]}</span>
+            {features.map(([number, key], i) => (
+              <article key={number}>
+                <span>{number}</span>
                 <div>
-                  <h3>{f[1]}</h3>
-                  <p>{f[2]}</p>
+                  <h3>{t(`landing.features.items.${key}.title`)}</h3>
+                  <p>{t(`landing.features.items.${key}.text`)}</p>
                 </div>
                 <div className="feature-visual">
                   <div className="visual-core">
                     {i === 0
-                      ? "R$ 1.544,16"
+                      ? money(1544.16, "BRL")
                       : i === 1
-                        ? "€ 86 / dia"
+                        ? t("landing.features.perDay", {
+                            value: fmt.money(86, "EUR", 0),
+                          })
                         : i === 2
-                          ? "₿ 0,036"
-                          : "6 moedas"}
+                          ? `₿ ${fmt.number(0.036, 3)}`
+                          : t("landing.features.currencies", { count: 6 })}
                   </div>
                 </div>
               </article>
@@ -301,26 +316,21 @@ export default function Home() {
 
       <section className="converter shell" id="cotacoes">
         <div>
-          <div className="section-kicker">Câmbio sem adivinhação</div>
+          <div className="section-kicker">{t("landing.converter.kicker")}</div>
           <h2>
-            Antes de comprar,
+            {t("landing.converter.titleLine1")}
             <br />
-            saiba quanto custa.
+            {t("landing.converter.titleLine2")}
           </h2>
-          <p>
-            Converta moedas com uma referência clara. No produto, cada
-            lançamento preserva o valor e a moeda originais.
-          </p>
+          <p>{t("landing.converter.lead")}</p>
           <div className="source-note">
-            <span>●</span> Demonstração com valores ilustrativos
+            <span>●</span> {t("landing.converter.demo")}
             <br />
-            <small>
-              Integração de dados em tempo real prevista para o produto.
-            </small>
+            <small>{t("landing.converter.realtime")}</small>
           </div>
         </div>
         <div className="converter-card">
-          <label>Você tem</label>
+          <label>{t("landing.converter.youHave")}</label>
           <div className="money-input">
             <input
               value={amount}
@@ -340,13 +350,13 @@ export default function Home() {
               setFrom(base);
               setBase(old);
             }}
-            aria-label="Inverter moedas"
+            aria-label={t("landing.converter.swap")}
           >
             ⇅
           </button>
-          <label>Você terá aproximadamente</label>
+          <label>{t("landing.converter.youGet")}</label>
           <div className="result">
-            <strong>{fmt(converted, base)}</strong>
+            <strong>{money(converted, base)}</strong>
             <select value={base} onChange={(e) => setBase(e.target.value)}>
               {Object.keys(rates).map((x) => (
                 <option key={x}>{x}</option>
@@ -354,11 +364,7 @@ export default function Home() {
             </select>
           </div>
           <p>
-            1 {from} ≈{" "}
-            {(rates[from] / rates[base]).toLocaleString("pt-BR", {
-              maximumFractionDigits: 6,
-            })}{" "}
-            {base}
+            1 {from} ≈ {fmt.number(rates[from] / rates[base], 6)} {base}
           </p>
         </div>
       </section>
@@ -367,81 +373,47 @@ export default function Home() {
         <div className="shell security-grid">
           <div>
             <div className="section-kicker light">
-              Seu dinheiro é assunto sério
+              {t("landing.security.kicker")}
             </div>
             <h2>
-              Clareza no produto.
+              {t("landing.security.titleLine1")}
               <br />
-              Responsabilidade nos dados.
+              {t("landing.security.titleLine2")}
             </h2>
           </div>
           <div className="security-items">
-            <div>
-              <span>01</span>
-              <h3>Você mantém o controle</h3>
-              <p>
-                Seus dados financeiros são seus. Projetaremos exportação e
-                exclusão sem aprisionamento.
-              </p>
-            </div>
-            <div>
-              <span>02</span>
-              <h3>Menos dados, mais privacidade</h3>
-              <p>
-                Coletar somente o necessário, com consentimento claro e proteção
-                desde a arquitetura.
-              </p>
-            </div>
-            <div>
-              <span>03</span>
-              <h3>Informação, não custódia</h3>
-              <p>
-                O produto organiza e acompanha. Não guarda seu dinheiro nem suas
-                chaves de Bitcoin.
-              </p>
-            </div>
+            {securityItems.map(([number, key]) => (
+              <div key={number}>
+                <span>{number}</span>
+                <h3>{t(`landing.security.items.${key}.title`)}</h3>
+                <p>{t(`landing.security.items.${key}.text`)}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       <section className="faq shell">
         <div>
-          <div className="section-kicker">Perguntas reais</div>
+          <div className="section-kicker">{t("landing.faq.kicker")}</div>
           <h2>
-            O que você
+            {t("landing.faq.titleLine1")}
             <br />
-            precisa saber.
+            {t("landing.faq.titleLine2")}
           </h2>
         </div>
         <div>
-          {[
-            [
-              "O Cash Flow Global será uma conta bancária?",
-              "Não. A proposta inicial é ser um sistema de organização e inteligência financeira pessoal, sem custodiar dinheiro.",
-            ],
-            [
-              "Posso usar sem conectar meu banco?",
-              "Sim. O lançamento manual e a importação fazem parte da visão. Conexões bancárias serão avaliadas por país e parceiro.",
-            ],
-            [
-              "Bitcoin fica misturado com saldo disponível?",
-              "Não. Criptoativos aparecem no patrimônio, mas separados de caixa e contas correntes.",
-            ],
-            [
-              "Quais moedas estarão disponíveis?",
-              "O foco inicial inclui BRL, USD, EUR, UYU, CLP e BTC, com arquitetura preparada para ampliar a cobertura.",
-            ],
-          ].map((f, i) => (
+          {faqItems.map((key, i) => (
             <button
               className={"faq-item " + (openFaq === i ? "open" : "")}
-              key={f[0]}
+              key={key}
               onClick={() => setOpenFaq(openFaq === i ? -1 : i)}
             >
               <span>
-                <b>{f[0]}</b>
+                <b>{t(`landing.faq.items.${key}.question`)}</b>
                 <i>+</i>
               </span>
-              <p>{f[1]}</p>
+              <p>{t(`landing.faq.items.${key}.answer`)}</p>
             </button>
           ))}
         </div>
@@ -451,14 +423,11 @@ export default function Home() {
         <div className="shell">
           <Mark />
           <h2>
-            Seu dinheiro já é global.
+            {t("landing.cta.titleLine1")}
             <br />
-            Agora seu controle também será.
+            {t("landing.cta.titleLine2")}
           </h2>
-          <p>
-            Entre na lista para acompanhar o desenvolvimento e participar dos
-            primeiros testes.
-          </p>
+          <p>{t("landing.cta.lead")}</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -466,48 +435,63 @@ export default function Home() {
               const response = await fetch("/api/v1/auth/early-access", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify(Object.fromEntries(new FormData(form))),
+                body: JSON.stringify({
+                  ...Object.fromEntries(new FormData(form)),
+                  acceptLegal: acceptedLegal,
+                  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                }),
               });
-              if (response.ok)
-                form.innerHTML =
-                  "<small>Cadastro criado. Confira seu e-mail para confirmar o acesso.</small>";
+              if (response.ok) {
+                const note = document.createElement("small");
+                note.textContent = t("landing.cta.success");
+                form.replaceChildren(note);
+              }
             }}
           >
             <input
               name="name"
               type="text"
-              placeholder="Seu nome"
-              aria-label="Seu nome"
+              placeholder={t("landing.cta.name")}
+              aria-label={t("landing.cta.name")}
               required
             />
             <input
               name="email"
               type="email"
-              placeholder="seu@email.com"
-              aria-label="Seu e-mail"
+              placeholder={t("landing.cta.emailPlaceholder")}
+              aria-label={t("landing.cta.emailLabel")}
               required
             />
-            <button className="button">
-              Quero participar <span>→</span>
+            <button className="button" disabled={!acceptedLegal}>
+              {t("landing.cta.submit")} <span>→</span>
             </button>
           </form>
-          <small>Produto em fase de descoberta. Sem spam.</small>
+          <label className="consent">
+            <input
+              type="checkbox"
+              checked={acceptedLegal}
+              onChange={(e) => setAcceptedLegal(e.target.checked)}
+            />
+            <span>
+              <AcceptLinks />
+            </span>
+          </label>
+          <small>{t("landing.cta.note")}</small>
         </div>
       </section>
       <footer className="shell">
         <a className="brand" href="#top">
           <Mark />
-          <span>Cash Flow</span>
-          <b>Global</b>
+          <span>Amora</span>
         </a>
         <p>
-          Uma nova forma de entender seu dinheiro no mundo.
+          {t("landing.footer.tagline")}
           <br />
-          Produto Apgees · Três Corações + Montevidéu
+          {t("landing.footer.origin")}
         </p>
         <div>
-          <a href="#">Privacidade</a>
-          <a href="#">Termos</a>
+          <Link href="/legal/privacy">{t("landing.footer.privacy")}</Link>
+          <Link href="/legal/terms">{t("landing.footer.terms")}</Link>
           <a href="https://www.apgees.com.br">Apgees</a>
         </div>
       </footer>

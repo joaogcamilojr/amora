@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 
 import { requestLoginCode } from "@/lib/auth/email-auth";
-import { jsonData, jsonError } from "@/lib/http";
+import { caughtError } from "@/lib/finance/api";
+import { jsonData } from "@/lib/http";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,10 +12,12 @@ export async function POST(request: NextRequest) {
       ),
     );
   } catch (error) {
-    return jsonError(
+    return caughtError(
+      null,
       400,
       "LOGIN_ERROR",
-      error instanceof Error ? error.message : "Invalid request",
+      error,
+      "errors.invalidRequest",
     );
   }
 }

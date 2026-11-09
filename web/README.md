@@ -1,6 +1,6 @@
-# Cash Flow | Global
+# Amora — web
 
-Protótipo autenticado da versão 1.1 do produto B2C multimoeda da Apgees.
+App Next.js do Amora (SaaS internacional de finanças pessoais e familiares, multimoeda). Diretrizes: [`../AGENTS.md`](../AGENTS.md) e [`AGENTS.md`](AGENTS.md).
 
 ## Executar
 
@@ -18,8 +18,14 @@ Consulte [docs/app-shell.md](docs/app-shell.md) para shell, navegação, estados
 
 - `/`: landing pública demonstrativa;
 - `/login`: login por código OTP enviado por e-mail;
-- `/dashboard`: visão autenticada;
-- `/accounts`: contas, carteiras e cartões;
+- `/dashboard`: visão geral (central de comando);
+- `/transactions`: lançamentos, filtros e edição de tipo/categoria;
+- `/cards`: faturas, limite, parcelas e cashback;
+- `/recurring`: recorrentes e parcelamentos;
+- `/accounts`: contas por país, conferência de saldo e câmbio (formulários `/accounts/new` e `/accounts/:id` ainda no visual antigo);
+- `/holdings`: bens e investimentos;
+- `/trips`: viagens por tag;
+- `/import`: importação CSV/OFX com revisão;
 - `/api/v1`: Route Handlers autenticados.
 
 ## Contas, carteiras e cartões

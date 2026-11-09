@@ -2,11 +2,13 @@
 
 import { ReactNode, useEffect, useRef } from "react";
 
+import { useI18n } from "@/lib/i18n/client";
+
 export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "Confirmar",
+  confirmLabel,
   destructive = false,
   busy = false,
   onConfirm,
@@ -23,6 +25,7 @@ export function ConfirmDialog({
   onCancel: () => void;
   children?: ReactNode;
 }) {
+  const { t } = useI18n();
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -58,14 +61,16 @@ export function ConfirmDialog({
             onClick={onCancel}
             disabled={busy}
           >
-            Cancelar
+            {t("common.actions.cancel")}
           </button>
           <button
             className={`button button-small ${destructive ? "danger-button" : ""}`}
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? "Aguarde..." : confirmLabel}
+            {busy
+              ? t("ui.wait")
+              : (confirmLabel ?? t("common.actions.confirm"))}
           </button>
         </div>
       </section>

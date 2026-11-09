@@ -1,3 +1,7 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n/client";
+
 import { Icon } from "./icon";
 import { ToastInput } from "./toast-provider";
 
@@ -16,6 +20,7 @@ export function ToastViewport({
   items: Toast[];
   dismiss: (id: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="toast-viewport" aria-live="polite">
       {items.map((item) => (
@@ -32,7 +37,7 @@ export function ToastViewport({
           </div>
           <button
             type="button"
-            aria-label="Fechar mensagem"
+            aria-label={t("ui.closeMessage")}
             onClick={() => dismiss(item.id)}
           >
             <Icon name="close" size={16} />

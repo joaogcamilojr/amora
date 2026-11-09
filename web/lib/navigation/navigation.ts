@@ -16,51 +16,66 @@ export type IconName =
   | "info"
   | "refresh";
 
+export type NavigationItemKey =
+  | "dashboard"
+  | "transactions"
+  | "cards"
+  | "recurring"
+  | "accounts"
+  | "holdings"
+  | "trips"
+  | "import";
+
 export type NavigationItem = {
-  label: string;
   href: string;
-  icon: IconName;
-  isActive?: (pathname: string) => boolean;
+  key: NavigationItemKey;
 };
 
-export const navigationGroups = [
+export type NavigationGroup = {
+  key: "track" | "wealth" | "data";
+  items: NavigationItem[];
+};
+
+/** Rótulos vêm do catálogo: `nav.groups.<group.key>` e `nav.items.<item.key>`. */
+export const navigationGroups: NavigationGroup[] = [
   {
-    label: "Visão geral",
+    key: "track",
     items: [
-      {
-        label: "Dashboard",
-        href: "/dashboard",
-        icon: "dashboard" as IconName,
-        isActive: (pathname: string) => pathname === "/dashboard",
-      },
+      { href: "/dashboard", key: "dashboard" },
+      { href: "/transactions", key: "transactions" },
+      { href: "/cards", key: "cards" },
+      { href: "/recurring", key: "recurring" },
     ],
   },
   {
-    label: "Finanças",
+    key: "wealth",
     items: [
-      {
-        label: "Contas e cartões",
-        href: "/accounts",
-        icon: "accounts" as IconName,
-        isActive: (pathname: string) => pathname.startsWith("/accounts"),
-      },
+      { href: "/accounts", key: "accounts" },
+      { href: "/holdings", key: "holdings" },
+      { href: "/trips", key: "trips" },
     ],
+  },
+  {
+    key: "data",
+    items: [{ href: "/import", key: "import" }],
   },
 ];
 
-export function getBreadcrumbs(pathname: string) {
-  const crumbs = [{ label: "Dashboard", href: "/dashboard" }];
-  if (pathname.startsWith("/accounts")) {
-    crumbs.push({ label: "Contas e cartões", href: "/accounts" });
-    if (pathname.includes("/new"))
-      crumbs.push({ label: "Nova conta", href: "/accounts/new" });
-    else if (pathname.includes("/edit"))
-      crumbs.push(
-        { label: "Conta", href: pathname.split("/edit")[0] },
-        { label: "Editar", href: pathname },
-      );
-    else if (pathname.split("/").filter(Boolean).length >= 2)
-      crumbs.push({ label: "Conta", href: pathname });
-  }
-  return crumbs;
+/** Rotas privadas fora do menu principal (acessadas pelo menu do usuário). */
+export const accountRoutes = [
+  { href: "/household", key: "household" as const },
+  { href: "/settings", key: "settings" as const },
+];
+
+export function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** Rotas privadas (usadas pelo proxy). */
+export const privatePrefixes = [
+  ...navigationGroups.flatMap((group) => group.items.map((item) => item.href)),
+  ...accountRoutes.map((route) => route.href),
+  // Primeiro acesso: fora do menu; o layout autenticado redireciona para cá quando falta configurar.
+  "/onboarding",
+  "/consent",
+];

@@ -1,6 +1,9 @@
+"use client";
+
 import { AccountType } from "@prisma/client";
 
 import { ACCOUNT_TYPE_CONFIGURATIONS } from "@/lib/accounts/account-types";
+import { useI18n } from "@/lib/i18n/client";
 
 export function AccountTypeSelect({
   value,
@@ -11,10 +14,11 @@ export function AccountTypeSelect({
   onChange: (value: AccountType) => void;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
   const config = ACCOUNT_TYPE_CONFIGURATIONS[value];
   return (
     <label>
-      Tipo
+      {t("common.fields.type")}
       <select
         value={value}
         disabled={disabled}
@@ -22,11 +26,15 @@ export function AccountTypeSelect({
       >
         {Object.values(ACCOUNT_TYPE_CONFIGURATIONS).map((item) => (
           <option value={item.value} key={item.value}>
-            {item.label}
+            {t(`enums.accountType.${item.value}.label`)}
           </option>
         ))}
       </select>
-      {config && <span className="field-note">{config.description}</span>}
+      {config && (
+        <span className="field-note">
+          {t(`enums.accountType.${config.value}.description`)}
+        </span>
+      )}
     </label>
   );
 }

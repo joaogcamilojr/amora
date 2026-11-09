@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
+import { useI18n } from "@/lib/i18n/client";
+
+const LOGIN_CODE_MINUTES = 10;
+
 export function LoginForm() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState("");
@@ -27,7 +33,7 @@ export function LoginForm() {
       );
       const body = await response.json();
       if (!response.ok || body.error) {
-        setError(body.error?.message ?? "Não foi possível entrar.");
+        setError(body.error?.message ?? t("auth.errors.signInFailed"));
         return;
       }
       if (!sent) {
@@ -36,7 +42,7 @@ export function LoginForm() {
       }
       router.push(params.get("next") || "/dashboard");
     } catch {
-      setError("Não foi possível conectar. Tente novamente.");
+      setError(t("auth.errors.connection"));
     } finally {
       setLoading(false);
     }
@@ -50,19 +56,24 @@ export function LoginForm() {
           <i />
           <i />
         </span>
-        <span>Cash Flow</span>
-        <b>Global</b>
+        <span>Amora</span>
       </Link>
       <section className="auth-card">
-        <span className="section-kicker">Acesso seguro</span>
-        <h1>Suas finanças, em uma visão global.</h1>
-        <p>
-          {sent
-            ? "Enviamos um código de acesso para seu e-mail."
-            : "Entre usando seu e-mail. Você receberá um código de acesso."}
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span className="section-kicker">{t("auth.kicker")}</span>
+          <LocaleSwitcher />
+        </div>
+        <h1>{t("auth.title")}</h1>
+        <p>{sent ? t("auth.codeSent") : t("auth.intro")}</p>
         <form onSubmit={submit}>
-          <label htmlFor="email">E-mail</label>
+          <label htmlFor="email">{t("auth.email")}</label>
           <input
             id="email"
             type="email"
@@ -71,11 +82,11 @@ export function LoginForm() {
             value={email}
             disabled={sent}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="voce@exemplo.com"
+            placeholder={t("auth.emailPlaceholder")}
           />
           {sent && (
             <>
-              <label htmlFor="code">Código de acesso</label>
+              <label htmlFor="code">{t("auth.code")}</label>
               <input
                 id="code"
                 inputMode="numeric"
@@ -89,7 +100,11 @@ export function LoginForm() {
             </>
           )}
           <button className="button" disabled={loading}>
-            {loading ? "Aguarde..." : sent ? "Entrar →" : "Enviar código →"}
+            {loading
+              ? t("auth.wait")
+              : sent
+                ? t("auth.signIn")
+                : t("auth.sendCode")}
           </button>
           {error && (
             <p className="form-error" role="alert">
@@ -97,7 +112,7 @@ export function LoginForm() {
             </p>
           )}
         </form>
-        <small>Sem senha. Código válido por 10 minutos.</small>
+        <small>{t("auth.footnote", { minutes: LOGIN_CODE_MINUTES })}</small>
       </section>
     </main>
   );

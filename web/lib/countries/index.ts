@@ -8,7 +8,7 @@ export function isCountryCode(value: unknown): value is string {
   return typeof value === "string" && ISO_SET.has(value.toUpperCase());
 }
 
-export function getCountryLabel(code: string, locale = "pt-BR") {
+export function getCountryLabel(code: string, locale: string) {
   const normalized = code.toUpperCase();
   try {
     return (
@@ -20,7 +20,7 @@ export function getCountryLabel(code: string, locale = "pt-BR") {
   }
 }
 
-export function getCountryOptions(locale = "pt-BR") {
+export function getCountryOptions(locale: string) {
   const collator = new Intl.Collator(locale);
   return ISO_ALPHA2.map((value) => ({
     value,
