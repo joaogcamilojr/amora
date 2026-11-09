@@ -143,24 +143,14 @@ select {
 .mark {
   width: 27px;
   height: 27px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px;
+  flex: 0 0 auto;
+  background: url("/logo.svg") center / contain no-repeat;
 }
 .mark i {
-  background: var(--blue);
-  border-radius: 6px 3px 6px 3px;
+  display: none;
 }
-.mark i:nth-child(2),
-.mark i:nth-child(3) {
-  background: var(--sky);
-}
-.mark-inverse i {
-  background: #fff;
-}
-.mark-inverse i:nth-child(2),
-.mark-inverse i:nth-child(3) {
-  background: #bfe4ff;
+.mark-inverse {
+  background-image: url("/logo-white.svg");
 }
 .navlinks {
   display: flex;
