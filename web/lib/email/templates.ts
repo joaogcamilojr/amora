@@ -1,6 +1,6 @@
 export const EMAIL_TEMPLATES = {
   emailConfirmation: {
-    id: "2db22596-8ad9-43bf-9c92-3ca9cf98a872",
+    id: "4433c039-1d2f-46cb-ad4b-b72bc5537b21",
     variables: [
       "ACTIVATION_URL",
       "EXPIRATION_MINUTES",
@@ -9,7 +9,7 @@ export const EMAIL_TEMPLATES = {
     ],
   },
   secureAccess: {
-    id: "382b4ca4-be47-4b42-8670-2e8f5015fc08",
+    id: "26432764-cfa1-4e1c-8dc1-fa6b305f667f",
     variables: [
       "EXPIRATION_MINUTES",
       "LOGIN_URL",

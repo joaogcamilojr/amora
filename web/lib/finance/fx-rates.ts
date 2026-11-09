@@ -5,9 +5,9 @@ import { ValidationError } from "@/lib/validation";
 
 import { FX_PIVOT } from "./fx";
 import { isCalendarDate } from "./fx-date";
-import { fetchProviderRates, PROVIDER_NAME } from "./fx-provider";
+import { fetchProviderRates } from "./fx-provider";
 
-/** Teto de dias por backfill: cada dia custa 1 requisição do plano gratuito (1.000/mês). */
+/** Teto de dias por backfill: cada dia é 1 requisição ao provedor (o plano gratuito da Open Exchange Rates tem 1.000/mês). */
 export const MAX_BACKFILL_DAYS = 31;
 
 /**
@@ -37,7 +37,7 @@ export async function refreshRates(date?: string) {
       from_asset_id: pivot.id,
       to_asset_id: a.id,
       rate: new Prisma.Decimal(provider.rates[a.code]),
-      provider: PROVIDER_NAME,
+      provider: provider.provider,
       reference_type: "daily",
       source: "PROVIDER" as const,
       provider_timestamp: at,
